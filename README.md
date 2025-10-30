@@ -75,38 +75,124 @@ Perfect for applications requiring millions of requests per minute with zero dow
 
 ## 🏗️ Architecture
 
-```
-                    +----------------------+
-                    |    Applications      |
-                    |  (single endpoint)   |
-                    +----------+-----------+
-                               |
-                               v
-                      +----------------+
-                      |     Envoy      |
-                      |  redis_proxy   |  <-- Health checks, retries,
-                      |   v1.32-latest |      circuit breakers, Maglev LB
-                      +-------+--------+
-                              |
-        +---------------------+---------------------+
-        |                     |                     |
-        v                     v                     v
-   +-----------+         +-----------+         +-----------+
-   | Redis M1  |         | Redis M2  |         | Redis M3  |
-   | + Replica |         | + Replica |         | + Replica |
-   +-----------+         +-----------+         +-----------+
-     (AZ-a)                (AZ-b)                (AZ-c)
-        |                     |                     |
-        +---------------------+---------------------+
-              Cluster Mode (16384 hash slots)
+<div align="center">
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        Apps[📱 Applications<br/>Single Endpoint]
+    end
+    
+    subgraph "Proxy Layer"
+        Envoy[🔀 Envoy Proxy v1.32<br/>━━━━━━━━━━━━━<br/>• redis_proxy filter<br/>• Maglev consistent hashing<br/>• Health checks & retries<br/>• Circuit breakers<br/>• Topology refresh: 10s]
+    end
+    
+    subgraph "Data Layer - Multi-AZ"
+        subgraph "AZ-a us-east-1a"
+            M1[🔴 Redis Master 1<br/>Hash Slots: 0-5460<br/>AOF: everysec]
+            R1[🔵 Replica 1]
+            M1 -.->|replication| R1
+        end
+        
+        subgraph "AZ-b us-east-1b"
+            M2[🔴 Redis Master 2<br/>Hash Slots: 5461-10922<br/>AOF: everysec]
+            R2[🔵 Replica 2]
+            M2 -.->|replication| R2
+        end
+        
+        subgraph "AZ-c us-east-1c"
+            M3[🔴 Redis Master 3<br/>Hash Slots: 10923-16383<br/>AOF: everysec]
+            R3[🔵 Replica 3]
+            M3 -.->|replication| R3
+        end
+    end
+    
+    subgraph "Monitoring Layer"
+        Exporters[📊 Exporters<br/>redis_exporter + node_exporter]
+        PushGW[⬆️ Push Gateway<br/>Metrics Buffer]
+        Prom[📈 Prometheus<br/>Time-Series DB]
+        Grafana[📉 Grafana<br/>Dashboards]
+        Discord[💬 Discord<br/>Alerts]
+    end
+    
+    Apps -->|Redis Protocol<br/>Port 6379| Envoy
+    Envoy -->|Key-based<br/>routing| M1
+    Envoy -->|Key-based<br/>routing| M2
+    Envoy -->|Key-based<br/>routing| M3
+    
+    M1 <-.->|Cluster Bus<br/>16379| M2
+    M2 <-.->|Cluster Bus<br/>16379| M3
+    M3 <-.->|Cluster Bus<br/>16379| M1
+    
+    M1 --> Exporters
+    M2 --> Exporters
+    M3 --> Exporters
+    Envoy --> Exporters
+    
+    Exporters -->|Push every 30s| PushGW
+    PushGW -->|Scrape| Prom
+    Prom --> Grafana
+    Prom --> Discord
+    
+    classDef apps fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef proxy fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    classDef master fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef replica fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef monitor fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    
+    class Apps apps
+    class Envoy proxy
+    class M1,M2,M3 master
+    class R1,R2,R3 replica
+    class Exporters,PushGW,Prom,Grafana,Discord monitor
 ```
 
-**Component Breakdown:**
+</div>
 
-1. **Applications** → Connect to single Envoy endpoint
-2. **Envoy Proxy** → Routes requests based on key hashing, handles retries
-3. **Redis Cluster** → 3 masters + 3 replicas across 3 availability zones
-4. **Monitoring** → redis_exporter and node_exporter push to Prometheus Push Gateway
+### 📐 Architecture Overview
+
+| Layer | Component | Purpose | Key Features |
+|-------|-----------|---------|--------------|
+| **Client** | Applications | Connect via single endpoint | No topology awareness needed |
+| **Proxy** | Envoy v1.32 | Intelligent Redis proxy | Maglev hashing, auto-retry, health checks |
+| **Data** | Redis 8.2 Cluster | Distributed key-value store | 16,384 slots, AOF persistence, multi-AZ |
+| **Monitoring** | Push-based metrics | Observability stack | 30s push interval, Grafana dashboards |
+
+### 🔄 Data Flow
+
+1. **Client Request** → Application sends Redis command to Envoy (`:6379`)
+2. **Smart Routing** → Envoy hashes key and routes to correct Redis master
+3. **Cluster Execution** → Redis master executes command and replicates to replica
+4. **Response** → Result returns through Envoy to application
+5. **Monitoring** → Exporters push metrics every 30s to Push Gateway → Prometheus
+
+### 🛡️ High Availability
+
+- **Multi-AZ Deployment**: 3 availability zones for fault tolerance
+- **Automatic Failover**: Replicas promoted to masters if master fails
+- **Health Checks**: Envoy detects unhealthy nodes and routes around them
+- **Circuit Breakers**: Prevents cascade failures under load
+- **Connection Pooling**: Efficient connection reuse reduces latency
+
+### 📊 Monitoring Architecture
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────┐
+│  Exporters  │────▶│ Push Gateway │────▶│ Prometheus  │────▶│ Grafana  │
+│  (9121/9100)│ 30s │   (Buffer)   │ 15s │  (Storage)  │     │ (Viz)    │
+└─────────────┘     └──────────────┘     └─────────────┘     └──────────┘
+                                                  │
+                                                  ▼
+                                          ┌──────────────┐
+                                          │   Discord    │
+                                          │   Alerts     │
+                                          └──────────────┘
+```
+
+**Key Metrics Tracked:**
+- Redis: ops/sec, memory usage, keyspace hits/misses, replication lag
+- Envoy: request rate, latency (p50/p95/p99), error rate, upstream health
+- System: CPU, memory, disk I/O, network throughput
 
 ---
 
