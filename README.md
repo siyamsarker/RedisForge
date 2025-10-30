@@ -245,7 +245,7 @@ graph TB
 | **AWS Account** | 3 availability zones (e.g., us-east-1a/b/c) |
 | **Redis Instances** | 3× r6i.2xlarge (8 vCPU, 64 GB RAM) |
 | **Envoy Instance** | 1× c6i.large (2 vCPU, 4-8 GB RAM) |
-| **OS** | Amazon Linux 2023 or Ubuntu 22.04+ |
+| **OS** | Amazon Linux 2023 or Ubuntu 24.04 LTS |
 | **Docker** | Docker Engine 20.10+ |
 | **S3 Bucket** | For backups (optional) |
 
@@ -288,9 +288,9 @@ sudo systemctl enable docker
 sudo usermod -aG docker ec2-user
 newgrp docker
 
-# Ubuntu 22.04
+# Ubuntu 24.04 LTS
 sudo apt update
-sudo apt install -y docker.io git redis-tools
+sudo apt install -y docker.io docker-compose-v2 git redis-tools
 sudo systemctl start docker
 sudo systemctl enable docker
 sudo usermod -aG docker ubuntu
@@ -755,7 +755,8 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 | Guide | Description | Use When |
 |-------|-------------|----------|
 | **[📖 Quick Start Guide](./QUICKSTART.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
-| **[🔧 Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
+| **[� Ubuntu 24.04 Setup Guide](./UBUNTU-24.04-SETUP.md)** | Complete deployment guide specifically for Ubuntu 24.04 LTS | Deploying on Ubuntu 24.04 LTS (Noble Numbat) |
+| **[�🔧 Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
 | **[💬 Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)** | Configure Discord webhook notifications for alerts | Setting up Discord notifications |
 
 ### Quick Links by Task

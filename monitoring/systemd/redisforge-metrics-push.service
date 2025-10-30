@@ -5,7 +5,11 @@ Requires=docker.service
 
 [Service]
 Type=simple
+# For Amazon Linux 2023, use: User=ec2-user
+# For Ubuntu 24.04 LTS, use: User=ubuntu
 User=ec2-user
+# For Amazon Linux 2023, use: WorkingDirectory=/home/ec2-user/RedisForge
+# For Ubuntu 24.04 LTS, use: WorkingDirectory=/home/ubuntu/RedisForge
 WorkingDirectory=/home/ec2-user/RedisForge
 ExecStart=/home/ec2-user/RedisForge/scripts/push-metrics.sh
 Restart=always

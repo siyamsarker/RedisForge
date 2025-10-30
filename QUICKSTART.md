@@ -61,7 +61,7 @@ Get RedisForge running in production on AWS EC2 in under 30 minutes.
 ```bash
 # Example using AWS CLI (adjust as needed)
 aws ec2 run-instances \
-  --image-id ami-0c55b159cbfafe1f0 \  # Amazon Linux 2023
+  --image-id ami-0c55b159cbfafe1f0 \  # Amazon Linux 2023 or Ubuntu 24.04 LTS
   --instance-type r6i.2xlarge \
   --count 3 \
   --key-name your-key \
@@ -91,9 +91,9 @@ sudo systemctl enable docker
 sudo usermod -aG docker ec2-user
 newgrp docker
 
-# Ubuntu 22.04 (alternative)
+# Ubuntu 24.04 LTS
 sudo apt update
-sudo apt install -y docker.io git redis-tools
+sudo apt install -y docker.io docker-compose-v2 git redis-tools curl jq
 sudo systemctl start docker
 sudo systemctl enable docker
 sudo usermod -aG docker ubuntu

@@ -3,6 +3,16 @@
 ################################################################################
 # RedisForge - Direct Docker Deployment Script (No Docker Compose)
 # Deploys Redis cluster or Envoy proxy using native Docker commands on EC2
+#
+# COMPATIBILITY:
+# - Amazon Linux 2023
+# - Ubuntu 24.04 LTS (Noble Numbat)
+# - Docker Engine 20.10+ or Docker CE 24.0+
+#
+# UBUNTU 24.04 REQUIREMENTS:
+# - sudo apt install docker.io docker-compose-v2 git redis-tools curl jq
+# - sudo systemctl enable --now docker
+# - sudo usermod -aG docker $USER && newgrp docker
 ################################################################################
 
 set -euo pipefail
