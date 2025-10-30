@@ -218,12 +218,13 @@ graph TB
 
 ### Automation
 
-- ✅ **Cluster Initialization** (`init-cluster.sh`)
-- ✅ **Dynamic Scaling** with resharding (`scale.sh`)
-- ✅ **Automated Backups** to S3 (`backup.sh`)
-- ✅ **Log Rotation** (`log-rotate.sh`)
-- ✅ **Smoke Tests** (`test-cluster.sh`)
-- ✅ **Deployment Scripts** (`deploy.sh`)
+- ✅ **Cluster Initialization** (`init-cluster.sh`) - Retry logic & health verification
+- ✅ **Dynamic Scaling** with resharding (`scale.sh`) - Input validation & safety checks
+- ✅ **Automated Backups** to S3 (`backup.sh`) - Multi-AOF support & verification
+- ✅ **Log Rotation** (`log-rotate.sh`) - Portable & compressed archives
+- ✅ **Integration Tests** (`test-cluster.sh`) - Comprehensive cluster validation
+- ✅ **Deployment Scripts** (`deploy.sh`) - Production-ready automation
+- ✅ **Production-Grade** - Error handling, validation, cleanup, portability
 
 ### Monitoring
 
@@ -496,11 +497,16 @@ Add a new Redis node:
 # 1. Deploy Redis on new instance
 ./scripts/deploy.sh redis
 
-# 2. Add to cluster
+# 2. Add to cluster (automatically validates and rebalances)
 REDIS_REQUIREPASS=your_password \
 SEED=10.0.1.10:6379 \
 ./scripts/scale.sh add 10.0.4.20:6379
 ```
+
+**Features:**
+- Node connectivity validation
+- Automatic rebalancing
+- Cluster health verification
 
 ### Scaling Down
 
@@ -510,17 +516,23 @@ Remove a node safely:
 # 1. Get node ID
 redis-cli -h 10.0.1.10 -a your_password cluster nodes
 
-# 2. Remove node
+# 2. Remove node (automatically drains slots and validates)
 REDIS_REQUIREPASS=your_password \
 SEED=10.0.1.10:6379 \
 ./scripts/scale.sh remove <node-id>
 ```
+
+**Features:**
+- Node ID validation (40-char hex)
+- Automatic slot draining
+- Safe removal with health checks
 
 ### Backups
 
 **Manual backup:**
 
 ```bash
+# Backs up all AOF files and cluster config to S3
 BACKUP_S3_BUCKET=s3://your-bucket/backups ./scripts/backup.sh
 ```
 
@@ -530,20 +542,46 @@ BACKUP_S3_BUCKET=s3://your-bucket/backups ./scripts/backup.sh
 # Add to crontab
 crontab -e
 
-# Hourly backups
-0 * * * * cd /path/to/RedisForge && BACKUP_S3_BUCKET=s3://your-bucket/backups ./scripts/backup.sh >> /var/log/redis-backup.log 2>&1
+# Hourly backups with 7-day retention
+0 * * * * cd /path/to/RedisForge && BACKUP_S3_BUCKET=s3://your-bucket/backups BACKUP_RETENTION_DAYS=7 ./scripts/backup.sh >> /var/log/redis-backup.log 2>&1
 ```
+
+**Features:**
+- Multi-AOF file support (Redis 7+ compatible)
+- Cluster configuration backup (nodes.conf)
+- Archive size verification
+- Optional retention policy
+- AWS CLI validation
 
 ### Log Rotation
 
 ```bash
-# Rotate logs over 1GB, keep 7 files
+# Rotate logs over 1GB, keep 7 rotated files, compress archives
 ./scripts/log-rotate.sh /var/log/redis 1024 7
 ```
 
+**Features:**
+- Portable across Linux & macOS
+- Automatic gzip compression
+- File permission preservation
+- Size validation
+
 ### Health Checks
 
-**Check cluster health:**
+**Run comprehensive integration tests:**
+
+```bash
+./scripts/test-cluster.sh <envoy-host> 6379
+```
+
+Tests include:
+- PING connectivity
+- SET/GET operations with unique keys
+- Pub/Sub messaging
+- Cluster state verification
+- Redis version & uptime
+
+**Check cluster health manually:**
 
 ```bash
 redis-cli -h <any-node> -a your_password cluster info
