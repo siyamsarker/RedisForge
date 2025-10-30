@@ -10,7 +10,17 @@ Complete automation for cluster lifecycle, scaling, monitoring, and backups.
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Redis](https://img.shields.io/badge/Redis-8.2-red.svg)](https://redis.io/)
 [![Envoy](https://img.shields.io/badge/Envoy-v1.32-blue.svg)](https://www.envoyproxy.io/)
-[![Issues](https://img.shields.io/github/issues-raw/redisforge/redisforge.svg)](https://github.com/redisforge/redisforge/issues)
+[![Docker](https://img.shields.io/badge/Docker-20.10+-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Push%20Gateway-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800.svg?logo=grafana&logoColor=white)](https://grafana.com/)
+[![AWS](https://img.shields.io/badge/AWS-EC2-FF9900.svg?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/ec2/)
+[![Bash](https://img.shields.io/badge/Bash-Automation-4EAA25.svg?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
+
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/siyamsarker/RedisForge/graphs/commit-activity)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/siyamsarker/RedisForge/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/siyamsarker/RedisForge.svg?style=social)](https://github.com/siyamsarker/RedisForge/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/siyamsarker/RedisForge.svg?style=social)](https://github.com/siyamsarker/RedisForge/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/siyamsarker/RedisForge.svg)](https://github.com/siyamsarker/RedisForge/issues)
 
 </div>
 
