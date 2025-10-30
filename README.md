@@ -52,7 +52,7 @@ Complete automation for cluster lifecycle, scaling, monitoring, and backups.
 
 - [🔧 Operations](#-operations)
 - [🔍 Troubleshooting](#-troubleshooting)
-- [📊 Key Metrics](#-key-metrics)
+- [� Key Metrics](#-key-metrics)
 
 </details>
 
@@ -685,7 +685,7 @@ sudo journalctl -u redisforge-metrics-push -n 50
 
 ---
 
-## 📊 Key Metrics
+## � Key Metrics
 
 ### Redis Metrics
 
