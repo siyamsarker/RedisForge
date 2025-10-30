@@ -28,19 +28,45 @@ Complete automation for cluster lifecycle, scaling, monitoring, and backups.
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Why RedisForge](#why-redisforge)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Quick Start](#quick-start)
-- [Production Deployment](#production-deployment)
-- [Monitoring Setup](#monitoring-setup)
-- [Operations](#operations)
-- [Troubleshooting](#troubleshooting)
-- [Documentation Guides](#-documentation-guides)
-- [Contributing](#contributing)
-- [License](#license)
+<details open>
+<summary><b>Getting Started</b></summary>
+
+- [🎯 Overview](#-overview)
+- [💡 Why RedisForge](#-why-redisforge)
+- [🏗️ Architecture](#️-architecture)
+- [✨ Features](#-features)
+- [📦 Requirements](#-requirements)
+
+</details>
+
+<details open>
+<summary><b>Deployment & Configuration</b></summary>
+
+- [🚀 Quick Start](#-quick-start)
+- [📊 Monitoring Setup](#-monitoring-setup)
+
+</details>
+
+<details open>
+<summary><b>Operations & Maintenance</b></summary>
+
+- [🔧 Operations](#-operations)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [📊 Key Metrics](#-key-metrics)
+
+</details>
+
+<details open>
+<summary><b>Documentation & Resources</b></summary>
+
+- [📁 Repository Structure](#-repository-structure)
+- [📚 Documentation Guides](#-documentation-guides)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📞 Support](#-support)
+
+</details>
 
 ---
 
