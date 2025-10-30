@@ -1,0 +1,156 @@
+# ================================================================================
+# RedisForge - Prometheus Configuration for PUSH-BASED Monitoring
+# This is a reference configuration for your existing Prometheus instance
+# ================================================================================
+
+# IMPORTANT: This file is provided as a reference only.
+# RedisForge does NOT deploy Prometheus/Grafana.
+# Add these scrape configs to your existing Prometheus configuration.
+
+# PUSH-BASED ARCHITECTURE:
+# Exporters → push-metrics.sh (every 30s) → Push Gateway → Prometheus
+#
+# SETUP:
+# 1. Deploy Prometheus Push Gateway on your infrastructure
+# 2. Configure PROMETHEUS_PUSHGATEWAY in .env on each Redis instance
+# 3. Enable redisforge-metrics-push systemd service on each instance
+# 4. Add the Push Gateway scrape config below to your Prometheus
+# 5. Reload Prometheus: curl -X POST http://localhost:9090/-/reload
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: 'redisforge'
+    environment: 'production'
+
+# ------------------------------------------------------------------------------
+# SCRAPE CONFIGURATIONS
+# ------------------------------------------------------------------------------
+scrape_configs:
+  # ----------------------------------------------------------------------------
+  # PROMETHEUS PUSH GATEWAY (REQUIRED)
+  # Replace <pushgateway-host> with your Push Gateway IP or hostname
+  # ----------------------------------------------------------------------------
+  - job_name: 'pushgateway'
+    honor_labels: true  # Preserve job/instance labels from pushed metrics
+    static_configs:
+    - targets: ['<pushgateway-host>:9091']
+      labels:
+        service: 'pushgateway'
+
+  # ----------------------------------------------------------------------------
+  # PROMETHEUS SELF-MONITORING (Optional)
+  # ----------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+    - targets: ['localhost:9090']
+      labels:
+        service: 'prometheus'
+
+# ================================================================================
+# KEY METRICS TO MONITOR
+# ================================================================================
+# All metrics are pushed to Push Gateway and queried via Prometheus
+#
+# Redis (job=redis-exporter):
+#   - redis_up: Instance availability (1 = up, 0 = down)
+#   - redis_connected_clients: Number of active client connections
+#   - redis_memory_used_bytes: Current memory usage
+#   - redis_memory_max_bytes: Maximum memory limit
+#   - redis_keyspace_hits_total: Cache hit count
+#   - redis_keyspace_misses_total: Cache miss count
+#   - redis_commands_processed_total: Total commands processed
+#   - redis_cluster_slots_ok: Number of slots correctly assigned (should be 16384)
+#   - redis_replication_lag_seconds: Replication lag for replicas
+#
+# Envoy (job=envoy):
+#   - envoy_cluster_membership_healthy: Number of healthy upstream hosts
+#   - envoy_cluster_upstream_rq_total: Total upstream requests
+#   - envoy_cluster_upstream_rq_time: Request latency histogram
+#   - envoy_cluster_upstream_cx_active: Active upstream connections
+#   - envoy_cluster_upstream_rq_retry: Number of retries
+#
+# Node (job=node-exporter):
+#   - node_cpu_seconds_total: CPU usage by mode
+#   - node_memory_MemAvailable_bytes: Available system memory
+#   - node_disk_io_time_seconds_total: Disk I/O time
+#   - node_network_receive_bytes_total: Network bytes received
+#
+# ================================================================================
+# PUSH-BASED MONITORING NOTES
+# ================================================================================
+# 1. Data Flow:
+#    - Exporters run on each Redis instance (redis_exporter:9121, node_exporter:9100)
+#    - push-metrics.sh scrapes exporters every 30s (configurable)
+#    - Metrics pushed to Push Gateway
+#    - Prometheus scrapes Push Gateway every 15s
+#
+# 2. Local Storage:
+#    - Exporters DO NOT store historical data (only current state)
+#    - Push Gateway stores metrics in memory (lost on restart)
+#    - Prometheus stores all historical data on disk
+#
+# 3. Push Interval:
+#    - Default: 30 seconds (METRICS_PUSH_INTERVAL in .env)
+#    - Adjust based on monitoring needs
+#
+# 4. honor_labels: true
+#    - Preserves 'job' and 'instance' labels from pushed metrics
+#    - Critical for distinguishing between Redis instances
+#
+# 5. Troubleshooting:
+#    - Check gateway: curl http://<gateway>:9091/metrics | grep redis_up
+#    - Query Prometheus: curl 'http://localhost:9090/api/v1/query?query=redis_up'
+#    - View targets: http://localhost:9090/targets
+#
+# ================================================================================
+# EXAMPLE ALERTING RULES
+# ================================================================================
+# Add these to your Prometheus alerting rules:
+#
+# groups:
+# - name: redis_alerts
+#   rules:
+#   - alert: RedisDown
+#     expr: redis_up == 0
+#     for: 1m
+#     labels:
+#       severity: critical
+#     annotations:
+#       summary: "Redis instance {{ $labels.instance }} is down"
+#
+#   - alert: RedisMemoryHigh
+#     expr: (redis_memory_used_bytes / redis_memory_max_bytes) > 0.9
+#     for: 5m
+#     labels:
+#       severity: warning
+#     annotations:
+#       summary: "Redis memory usage > 90% on {{ $labels.instance }}"
+#
+#   - alert: RedisClusterUnhealthy
+#     expr: redis_cluster_slots_ok < 16384
+#     for: 2m
+#     labels:
+#       severity: critical
+#     annotations:
+#       summary: "Redis cluster slots not fully assigned"
+#
+#   - alert: EnvoyHighErrorRate
+#     expr: rate(envoy_cluster_upstream_rq{response_code_class="5"}[5m]) > 0.01
+#     for: 5m
+#     labels:
+#       severity: warning
+#     annotations:
+#       summary: "Envoy 5xx error rate > 1%"
+#
+#   - alert: MetricsPushDelayed
+#     expr: (time() - push_time_seconds{job="redis-exporter"}) > 120
+#     for: 2m
+#     labels:
+#       severity: warning
+#     annotations:
+#       summary: "Metrics push delayed on {{ $labels.instance }}"
+#
+# ================================================================================

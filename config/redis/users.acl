@@ -1,0 +1,116 @@
+# ================================================================================
+# RedisForge - Production-Ready Redis ACL Configuration
+# Least-privilege access control for security and compliance
+# ================================================================================
+
+# ------------------------------------------------------------------------------
+# DEFAULT USER (Administrative Access)
+# ------------------------------------------------------------------------------
+# Full access for cluster management and administrative tasks
+# In production, disable or restrict this user and use specific service accounts
+user default on >${REDIS_REQUIREPASS:-changeme} allkeys allchannels allcommands ~* &* +@all
+
+# ------------------------------------------------------------------------------
+# APPLICATION USER (Read/Write Access)
+# ------------------------------------------------------------------------------
+# Limited permissions for application workloads
+# Can read/write data but cannot execute dangerous commands
+user ${REDIS_ACL_USER:-app_user} on >${REDIS_ACL_PASS:-app_password} \
+  ~* \
+  &* \
+  +@all \
+  -@dangerous \
+  -@admin \
+  -CONFIG \
+  -SLAVEOF \
+  -REPLICAOF \
+  -SAVE \
+  -BGSAVE \
+  -BGREWRITEAOF \
+  -SHUTDOWN \
+  -DEBUG \
+  -FLUSHDB \
+  -FLUSHALL \
+  -KEYS \
+  -MIGRATE \
+  -RESTORE \
+  -RESTORE-ASKING \
+  -MODULE \
+  -MONITOR \
+  -ROLE \
+  -ACL
+
+# ------------------------------------------------------------------------------
+# READ-ONLY USER (Query Access)
+# ------------------------------------------------------------------------------
+# Read-only access for reporting and analytics workloads
+user ${REDIS_READONLY_USER:-readonly_user} on >${REDIS_READONLY_PASS:-readonly_password} \
+  ~* \
+  +@read \
+  +@connection \
+  +PING \
+  +INFO \
+  +CLIENT \
+  +CLUSTER \
+  -@write \
+  -@dangerous \
+  -@admin
+
+# ------------------------------------------------------------------------------
+# MONITORING USER (Metrics Collection)
+# ------------------------------------------------------------------------------
+# Minimal permissions for Prometheus redis_exporter
+user ${REDIS_MONITOR_USER:-monitor_user} on >${REDIS_MONITOR_PASS:-monitor_password} \
+  ~* \
+  +PING \
+  +INFO \
+  +CLIENT|LIST \
+  +CLIENT|GETNAME \
+  +CLIENT|SETNAME \
+  +CONFIG|GET \
+  +CLUSTER|INFO \
+  +CLUSTER|NODES \
+  +SLOWLOG \
+  +LATENCY \
+  allchannels \
+  -@all
+
+# ------------------------------------------------------------------------------
+# REPLICATION USER (Sentinel and Replica Access)
+# ------------------------------------------------------------------------------
+# Permissions for Sentinel and replica synchronization
+user ${REDIS_REPLICATION_USER:-replication_user} on >${REDIS_REPLICATION_PASS:-replication_password} \
+  ~* \
+  +PSYNC \
+  +REPLCONF \
+  +PING \
+  +INFO \
+  +CLIENT \
+  +SUBSCRIBE \
+  +UNSUBSCRIBE \
+  +PSUBSCRIBE \
+  +PUNSUBSCRIBE \
+  allchannels \
+  -@all
+
+# ------------------------------------------------------------------------------
+# NOTES FOR PRODUCTION DEPLOYMENT
+# ------------------------------------------------------------------------------
+# 1. Change all default passwords immediately
+# 2. Use strong, randomly generated passwords (min 32 characters)
+# 3. Rotate passwords regularly (every 90 days)
+# 4. Store passwords securely (AWS Secrets Manager, HashiCorp Vault, etc.)
+# 5. Monitor ACL changes via Redis audit logs
+# 6. Test ACL rules before deploying to production
+# 7. Use different users for different application tiers (web, workers, etc.)
+# 8. Enable ACL logging: CONFIG SET acllog-max-len 128
+#
+# Password generation example:
+#   openssl rand -base64 32
+#
+# ACL testing commands:
+#   ACL WHOAMI
+#   ACL GETUSER <username>
+#   ACL LOG
+# ================================================================================
+

@@ -1,0 +1,693 @@
+<div align="center">
+
+# RedisForge
+
+**Production-ready Redis 8.2 OSS cluster with high availability, AOF persistence, and Envoy proxy**
+
+Designed for millions of requests per minute on AWS EC2 using Docker.  
+Complete automation for cluster lifecycle, scaling, monitoring, and backups.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Redis](https://img.shields.io/badge/Redis-8.2-red.svg)](https://redis.io/)
+[![Envoy](https://img.shields.io/badge/Envoy-v1.32-blue.svg)](https://www.envoyproxy.io/)
+[![Issues](https://img.shields.io/github/issues-raw/redisforge/redisforge.svg)](https://github.com/redisforge/redisforge/issues)
+
+</div>
+
+---
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Why RedisForge](#why-redisforge)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Production Deployment](#production-deployment)
+- [Monitoring Setup](#monitoring-setup)
+- [Operations](#operations)
+- [Troubleshooting](#troubleshooting)
+- [Documentation Guides](#-documentation-guides)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## 🎯 Overview
+
+RedisForge is a production-ready Redis 8.2 OSS cluster deployment with:
+
+- **Single Endpoint**: Envoy proxy handles routing, sharding, and failover transparently
+- **High Availability**: Multi-AZ masters with replicas and automatic failover
+- **Durable**: AOF persistence with `appendfsync everysec`
+- **Observable**: Push-based monitoring with Prometheus and Grafana
+- **Automated**: Complete lifecycle management with idempotent Bash scripts
+
+Perfect for applications requiring millions of requests per minute with zero downtime.
+
+---
+
+## 💡 Why RedisForge
+
+| Feature | Benefit |
+|---------|---------|
+| **Single Endpoint** | Clients connect to Envoy; no topology changes in app code |
+| **Envoy redis_proxy** | Intelligent routing, retries, health checks, circuit breakers |
+| **AOF Persistence** | Data durability with `everysec` fsync strategy |
+| **Multi-AZ HA** | Automatic failover across availability zones |
+| **Push-Based Monitoring** | Metrics pushed to Prometheus Push Gateway every 30s |
+| **Automation Scripts** | Deploy, scale, backup, rotate logs - all automated |
+| **No TLS Overhead** | Optimized for performance (TLS removed for speed) |
+| **Docker-Based** | Easy deployment, consistent environments |
+
+---
+
+## 🏗️ Architecture
+
+```
+                    +----------------------+
+                    |    Applications      |
+                    |  (single endpoint)   |
+                    +----------+-----------+
+                               |
+                               v
+                      +----------------+
+                      |     Envoy      |
+                      |  redis_proxy   |  <-- Health checks, retries,
+                      |   v1.32-latest |      circuit breakers, Maglev LB
+                      +-------+--------+
+                              |
+        +---------------------+---------------------+
+        |                     |                     |
+        v                     v                     v
+   +-----------+         +-----------+         +-----------+
+   | Redis M1  |         | Redis M2  |         | Redis M3  |
+   | + Replica |         | + Replica |         | + Replica |
+   +-----------+         +-----------+         +-----------+
+     (AZ-a)                (AZ-b)                (AZ-c)
+        |                     |                     |
+        +---------------------+---------------------+
+              Cluster Mode (16384 hash slots)
+```
+
+**Component Breakdown:**
+
+1. **Applications** → Connect to single Envoy endpoint
+2. **Envoy Proxy** → Routes requests based on key hashing, handles retries
+3. **Redis Cluster** → 3 masters + 3 replicas across 3 availability zones
+4. **Monitoring** → redis_exporter and node_exporter push to Prometheus Push Gateway
+
+---
+
+## ✨ Features
+
+### Redis
+
+- ✅ **Redis 8.2 OSS** in cluster mode (latest stable)
+- ✅ **AOF Persistence** with `appendfsync everysec`
+- ✅ **Multi-AZ Deployment** for high availability
+- ✅ **ACL Authentication** with role-based access
+- ✅ **Memory Eviction** policies (configurable)
+- ✅ **Performance Optimized** for high throughput
+
+### Envoy Proxy
+
+- ✅ **Redis Proxy Filter** with cluster discovery
+- ✅ **Topology Refresh** (10s default, configurable)
+- ✅ **Maglev Consistent Hashing** for even distribution
+- ✅ **Health Checks** & outlier detection
+- ✅ **Connection Pooling** & circuit breakers
+- ✅ **Automatic Retry** on failure
+
+### Automation
+
+- ✅ **Cluster Initialization** (`init-cluster.sh`)
+- ✅ **Dynamic Scaling** with resharding (`scale.sh`)
+- ✅ **Automated Backups** to S3 (`backup.sh`)
+- ✅ **Log Rotation** (`log-rotate.sh`)
+- ✅ **Smoke Tests** (`test-cluster.sh`)
+- ✅ **Deployment Scripts** (`deploy.sh`)
+
+### Monitoring
+
+- ✅ **Push-Based Architecture** (no pull scraping needed)
+- ✅ **redis_exporter** for Redis metrics
+- ✅ **node_exporter** for system metrics
+- ✅ **Prometheus Push Gateway** integration
+- ✅ **Pre-built Grafana Dashboard**
+- ✅ **Discord Alerts** for Push Gateway issues
+
+---
+
+## 📦 Requirements
+
+### Infrastructure
+
+| Component | Specification |
+|-----------|---------------|
+| **AWS Account** | 3 availability zones (e.g., us-east-1a/b/c) |
+| **Redis Instances** | 3× r6i.2xlarge (8 vCPU, 64 GB RAM) |
+| **Envoy Instance** | 1× c6i.large (2 vCPU, 4-8 GB RAM) |
+| **OS** | Amazon Linux 2023 or Ubuntu 22.04+ |
+| **Docker** | Docker Engine 20.10+ |
+| **S3 Bucket** | For backups (optional) |
+
+### Monitoring (User-Provided)
+
+- **Prometheus** instance for metrics collection
+- **Prometheus Push Gateway** for push-based metrics
+- **Grafana** instance for dashboards
+
+### Networking
+
+Security groups must allow:
+
+| Service | Port | Source | Purpose |
+|---------|------|--------|---------|
+| Envoy | 6379 | Application SG | Redis proxy |
+| Envoy | 9901 | Prometheus IP | Admin/metrics |
+| Redis | 6379 | Redis SG | Cluster communication |
+| Redis | 16379 | Redis SG | Cluster bus |
+| Exporters | 9121, 9100 | Localhost | Metrics collection |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Provision EC2 Instances
+
+Deploy 4 EC2 instances:
+- 3× Redis masters (r6i.2xlarge, one per AZ)
+- 1× Envoy proxy (c6i.large)
+
+### 2. Install Docker on All Instances
+
+```bash
+# Amazon Linux 2023
+sudo yum update -y
+sudo yum install -y docker git redis
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ec2-user
+newgrp docker
+
+# Ubuntu 22.04
+sudo apt update
+sudo apt install -y docker.io git redis-tools
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ubuntu
+newgrp docker
+```
+
+### 3. Clone Repository
+
+On all instances:
+
+```bash
+git clone https://github.com/your-org/RedisForge.git
+cd RedisForge
+```
+
+### 4. Configure Environment
+
+```bash
+cp env.example .env
+
+# Generate strong passwords
+REDIS_PASS=$(openssl rand -base64 32)
+echo "REDIS_REQUIREPASS=$REDIS_PASS" >> .env
+
+# Edit .env and set:
+# - REDIS_REQUIREPASS (use generated password)
+# - REDIS_MAXMEMORY (e.g., 48gb for 64GB instance)
+# - PROMETHEUS_PUSHGATEWAY (your Push Gateway URL)
+# - METRICS_PUSH_INTERVAL (default: 30 seconds)
+```
+
+### 5. Deploy Redis on Each Redis Instance
+
+```bash
+# Set announce IP to this instance's private IP
+export REDIS_CLUSTER_ANNOUNCE_IP=$(hostname -I | awk '{print $1}')
+
+# Deploy Redis
+./scripts/deploy.sh redis
+
+# Verify
+docker ps | grep redis-master
+```
+
+### 6. Initialize Cluster
+
+From any machine with redis-cli:
+
+```bash
+REDIS_REQUIREPASS=your_password \
+./scripts/init-cluster.sh \
+  "10.0.1.10:6379,10.0.2.11:6379,10.0.3.12:6379,10.0.1.13:6379,10.0.2.14:6379,10.0.3.15:6379"
+
+# Verify cluster
+redis-cli -h 10.0.1.10 -a your_password cluster info
+```
+
+### 7. Deploy Envoy Proxy
+
+On Envoy instance:
+
+```bash
+./scripts/deploy.sh envoy
+
+# Verify
+docker ps | grep envoy-proxy
+curl http://localhost:9901/clusters
+```
+
+### 8. Test Cluster
+
+```bash
+redis-cli -h <envoy-ip> -p 6379 -a your_password PING
+# Expected: PONG
+
+redis-cli -h <envoy-ip> -p 6379 -a your_password SET test "RedisForge"
+redis-cli -h <envoy-ip> -p 6379 -a your_password GET test
+# Expected: "RedisForge"
+```
+
+---
+
+## 📊 Monitoring Setup
+
+RedisForge uses **push-based monitoring** with Prometheus Push Gateway.
+
+### Architecture
+
+```
+Exporters → push-metrics.sh (every 30s) → Push Gateway → Prometheus → Grafana
+```
+
+### Step 1: Deploy Monitoring Exporters
+
+On each Redis instance:
+
+```bash
+./scripts/setup-exporters.sh
+```
+
+This deploys:
+- `redis_exporter` on port 9121
+- `node_exporter` on port 9100
+
+### Step 2: Configure Push Gateway
+
+Edit `.env` on all Redis instances:
+
+```bash
+PROMETHEUS_PUSHGATEWAY=http://your-pushgateway:9091
+METRICS_PUSH_INTERVAL=30  # Push every 30 seconds
+```
+
+### Step 3: Enable Continuous Push Service
+
+**Option A: Using systemd (Production)**
+
+```bash
+# Copy service file
+sudo cp monitoring/systemd/redisforge-metrics-push.service /etc/systemd/system/
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable redisforge-metrics-push
+sudo systemctl start redisforge-metrics-push
+
+# Verify
+sudo systemctl status redisforge-metrics-push
+sudo journalctl -u redisforge-metrics-push -f
+```
+
+**Option B: Using screen (Testing)**
+
+```bash
+screen -S metrics-push
+./scripts/push-metrics.sh
+# Detach with Ctrl+A, D
+```
+
+### Step 4: Configure Prometheus
+
+Add to your Prometheus configuration:
+
+```yaml
+scrape_configs:
+  - job_name: 'pushgateway'
+    honor_labels: true  # Preserve labels from pushed metrics
+    static_configs:
+    - targets: ['<pushgateway-host>:9091']
+```
+
+Reload Prometheus:
+
+```bash
+curl -X POST http://localhost:9090/-/reload
+```
+
+### Step 5: Import Grafana Dashboard
+
+1. Open Grafana → Dashboards → Import
+2. Upload `monitoring/grafana/dashboards/redisforge-dashboard.json`
+3. Select your Prometheus datasource
+4. Save
+
+### Step 6: Configure Discord Alerts
+
+See [`DISCORD-ALERTS-SETUP.md`](./DISCORD-ALERTS-SETUP.md) for complete setup guide.
+
+**Quick setup:**
+
+```bash
+# 1. Create Discord webhook in your server
+# 2. Update alertmanager.yml
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN"
+sed -i "s|<YOUR_DISCORD_WEBHOOK_URL>|${DISCORD_WEBHOOK}|g" monitoring/alertmanager/alertmanager.yml
+
+# 3. Deploy Alertmanager
+docker run -d \
+  --name alertmanager \
+  --restart=always \
+  -p 9093:9093 \
+  -v $(pwd)/monitoring/alertmanager:/etc/alertmanager \
+  prom/alertmanager:latest \
+  --config.file=/etc/alertmanager/alertmanager.yml
+```
+
+---
+
+## 🔧 Operations
+
+### Scaling Up
+
+Add a new Redis node:
+
+```bash
+# 1. Deploy Redis on new instance
+./scripts/deploy.sh redis
+
+# 2. Add to cluster
+REDIS_REQUIREPASS=your_password \
+SEED=10.0.1.10:6379 \
+./scripts/scale.sh add 10.0.4.20:6379
+```
+
+### Scaling Down
+
+Remove a node safely:
+
+```bash
+# 1. Get node ID
+redis-cli -h 10.0.1.10 -a your_password cluster nodes
+
+# 2. Remove node
+REDIS_REQUIREPASS=your_password \
+SEED=10.0.1.10:6379 \
+./scripts/scale.sh remove <node-id>
+```
+
+### Backups
+
+**Manual backup:**
+
+```bash
+BACKUP_S3_BUCKET=s3://your-bucket/backups ./scripts/backup.sh
+```
+
+**Automated backups (cron):**
+
+```bash
+# Add to crontab
+crontab -e
+
+# Hourly backups
+0 * * * * cd /path/to/RedisForge && BACKUP_S3_BUCKET=s3://your-bucket/backups ./scripts/backup.sh >> /var/log/redis-backup.log 2>&1
+```
+
+### Log Rotation
+
+```bash
+# Rotate logs over 1GB, keep 7 files
+./scripts/log-rotate.sh /var/log/redis 1024 7
+```
+
+### Health Checks
+
+**Check cluster health:**
+
+```bash
+redis-cli -h <any-node> -a your_password cluster info
+redis-cli -h <any-node> -a your_password cluster nodes
+```
+
+**Check Envoy status:**
+
+```bash
+curl http://<envoy-ip>:9901/clusters
+curl http://<envoy-ip>:9901/stats/prometheus | grep redis
+```
+
+---
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### 1. Cluster Slots Not Fully Covered
+
+```bash
+# Check cluster state
+redis-cli -h <node> -a password cluster check
+
+# Fix slots
+redis-cli -h <node> -a password cluster fix
+```
+
+#### 2. Replica Not Syncing
+
+```bash
+# Check replication
+redis-cli -h <replica> -a password info replication
+
+# Force resync
+redis-cli -h <replica> -a password replicaof <master-ip> 6379
+```
+
+#### 3. Envoy Connection Refused
+
+```bash
+# Check Envoy logs
+docker logs envoy-proxy
+
+# Verify upstream health
+curl http://<envoy-ip>:9901/clusters | grep health_flags
+```
+
+#### 4. Push Gateway Failures
+
+**Impact:** ✅ Redis and Envoy continue operating normally (monitoring is decoupled)
+
+**Check:**
+
+```bash
+# 1. Verify exporters are running
+docker ps | grep exporter
+
+# 2. Check push service
+sudo systemctl status redisforge-metrics-push
+
+# 3. Test Push Gateway connectivity
+curl http://<pushgateway>:9091/-/healthy
+
+# 4. View push logs
+sudo journalctl -u redisforge-metrics-push -n 50
+```
+
+### Detailed Troubleshooting Guides
+
+- **Monitoring Issues**: See [`MONITORING-TROUBLESHOOTING.md`](./MONITORING-TROUBLESHOOTING.md)
+- **Discord Alerts**: See [`DISCORD-ALERTS-SETUP.md`](./DISCORD-ALERTS-SETUP.md)
+- **Production Deployment**: See [`QUICKSTART.md`](./QUICKSTART.md)
+
+---
+
+## 📊 Key Metrics
+
+### Redis Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `redis_up` | Instance availability (1=up, 0=down) |
+| `redis_connected_clients` | Active client connections |
+| `redis_memory_used_bytes` | Current memory usage |
+| `redis_keyspace_hits_total` | Cache hit count |
+| `redis_keyspace_misses_total` | Cache miss count |
+| `redis_commands_processed_total` | Total commands processed |
+| `redis_cluster_slots_ok` | Slots assigned (should be 16384) |
+
+### Envoy Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `envoy_cluster_membership_healthy` | Healthy upstream hosts |
+| `envoy_cluster_upstream_rq_total` | Total upstream requests |
+| `envoy_cluster_upstream_rq_time` | Request latency histogram |
+| `envoy_cluster_upstream_cx_active` | Active connections |
+
+### System Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `node_cpu_seconds_total` | CPU usage by mode |
+| `node_memory_MemAvailable_bytes` | Available system memory |
+| `node_disk_io_time_seconds_total` | Disk I/O time |
+
+---
+
+## 📁 Repository Structure
+
+```
+RedisForge/
+├── config/
+│   ├── envoy/
+│   │   └── envoy.yaml              # Envoy redis_proxy configuration
+│   └── redis/
+│       ├── redis.conf              # Redis production config
+│       └── users.acl               # Redis ACL definitions
+├── docker/
+│   ├── envoy/Dockerfile            # Envoy v1.32-latest image
+│   └── redis/Dockerfile            # Redis 8.2 image
+├── monitoring/
+│   ├── alertmanager/
+│   │   ├── alertmanager.yml        # Discord webhook config
+│   │   └── push-gateway-alerts.yml # Push Gateway alert rules
+│   ├── grafana/
+│   │   └── dashboards/
+│   │       └── redisforge-dashboard.json
+│   ├── prometheus/
+│   │   └── prometheus.yml          # Push Gateway scrape config
+│   └── systemd/
+│       └── redisforge-metrics-push.service
+├── scripts/
+│   ├── deploy.sh                   # Deploy Redis/Envoy/Exporters
+│   ├── init-cluster.sh             # Initialize Redis cluster
+│   ├── scale.sh                    # Scale up/down with resharding
+│   ├── backup.sh                   # Backup AOF to S3
+│   ├── log-rotate.sh               # Rotate Redis logs
+│   ├── setup-exporters.sh          # Deploy monitoring exporters
+│   ├── push-metrics.sh             # Push metrics to Push Gateway
+│   └── test-cluster.sh             # Integration smoke tests
+├── env.example                     # Environment configuration template
+├── QUICKSTART.md                   # Production deployment guide
+├── MONITORING-TROUBLESHOOTING.md   # Monitoring troubleshooting guide
+├── DISCORD-ALERTS-SETUP.md         # Discord integration guide
+├── LICENSE                         # MIT License
+└── README.md                       # This file
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Commit changes (`git commit -m 'Add amazing feature'`)
+5. Push to branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+### Development Guidelines
+
+- Write idempotent scripts
+- Include error handling
+- Update documentation
+- Follow 12-factor app practices
+- Test in multiple environments
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](./LICENSE) for details.
+
+```
+MIT License
+
+Copyright (c) 2025 RedisForge Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+```
+
+---
+
+## 🙏 Acknowledgments
+
+- **[Redis](https://redis.io/)** - In-memory data structure store
+- **[Envoy Proxy](https://www.envoyproxy.io/)** - Cloud-native edge and service proxy
+- **[Prometheus](https://prometheus.io/)** - Monitoring and alerting toolkit
+- **[Grafana](https://grafana.com/)** - Observability and visualization platform
+- **Redis OSS Community** - For continuous improvements
+- **Envoy Contributors** - For the redis_proxy filter
+
+---
+
+## 📚 Documentation Guides
+
+### Detailed Setup Guides
+
+| Guide | Description | Use When |
+|-------|-------------|----------|
+| **[📖 Quick Start Guide](./QUICKSTART.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
+| **[🔧 Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
+| **[💬 Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)** | Configure Discord webhook notifications for alerts | Setting up Discord notifications |
+
+### Quick Links by Task
+
+**I want to...**
+
+- 🚀 **Deploy to production** → See [Quick Start Guide](./QUICKSTART.md)
+- 📊 **Set up monitoring** → See [Monitoring Setup](#monitoring-setup) above
+- 🔔 **Get Discord alerts** → See [Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)
+- 🐛 **Fix monitoring issues** → See [Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)
+- 📈 **Scale the cluster** → See [Operations](#operations) above
+- 💾 **Configure backups** → See [Operations](#operations) above
+- 🔍 **Debug cluster issues** → See [Troubleshooting](#troubleshooting) above
+
+---
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/your-org/RedisForge/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/RedisForge/discussions)
+- **Documentation**: See detailed guides above
+
+---
+
+<div align="center">
+
+**Built with ❤️ for production Redis deployments**
+
+[⭐ Star this repo](https://github.com/your-org/RedisForge) | [🐛 Report Bug](https://github.com/your-org/RedisForge/issues) | [✨ Request Feature](https://github.com/your-org/RedisForge/issues)
+
+</div>

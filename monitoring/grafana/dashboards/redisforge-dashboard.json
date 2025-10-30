@@ -1,0 +1,47 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "iteration": 1658920000000,
+  "links": [],
+  "panels": [
+    {"type": "row", "title": "Redis Overview", "collapsed": false, "panels": []},
+    {"type": "stat", "title": "Ops/sec", "gridPos": {"x":0,"y":1,"w":6,"h":4},
+     "targets": [{"expr": "rate(redis_commands_processed_total[1m])", "refId": "A"}]},
+    {"type": "stat", "title": "Memory Used", "gridPos": {"x":6,"y":1,"w":6,"h":4},
+     "targets": [{"expr": "redis_memory_used_bytes", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "bytes"}}},
+    {"type": "graph", "title": "Latency p50/p95", "gridPos": {"x":0,"y":5,"w":12,"h":6},
+     "targets": [
+       {"expr": "histogram_quantile(0.50, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "A"},
+       {"expr": "histogram_quantile(0.95, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "B"}
+     ]},
+    {"type": "graph", "title": "Keyspace Hits/Misses", "gridPos": {"x":0,"y":11,"w":12,"h":6},
+     "targets": [
+       {"expr": "rate(redis_keyspace_hits_total[1m])", "refId": "A"},
+       {"expr": "rate(redis_keyspace_misses_total[1m])", "refId": "B"}
+     ]},
+    {"type": "stat", "title": "Replication Lag (s)", "gridPos": {"x":0,"y":17,"w":6,"h":4},
+     "targets": [{"expr": "max(redis_connected_slaves) - min(redis_connected_slaves)", "refId": "A"}]},
+    {"type": "stat", "title": "Envoy Upstream Healthy", "gridPos": {"x":6,"y":17,"w":6,"h":4},
+     "targets": [{"expr": "sum(envoy_cluster_healthy{cluster=\"redis_cluster\"})", "refId": "A"}]},
+    {"type": "graph", "title": "Envoy Requests/Errors", "gridPos": {"x":0,"y":21,"w":12,"h":6},
+     "targets": [
+       {"expr": "rate(envoy_cluster_upstream_rq_total{cluster=\"redis_cluster\"}[1m])", "refId": "A"},
+       {"expr": "rate(envoy_cluster_upstream_rq_xx{cluster=\"redis_cluster\",envoy_response_code_class=\"5\"}[1m])", "refId": "B"}
+     ]}
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["redis", "envoy", "redisforge"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "RedisForge: Redis + Envoy",
+  "uid": "redisforge-main",
+  "version": 1
+}
+

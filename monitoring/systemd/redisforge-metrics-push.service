@@ -1,0 +1,21 @@
+[Unit]
+Description=RedisForge Metrics Push Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/RedisForge
+ExecStart=/home/ec2-user/RedisForge/scripts/push-metrics.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=redisforge-metrics
+
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+[Install]
+WantedBy=multi-user.target
