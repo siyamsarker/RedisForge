@@ -2,7 +2,7 @@
 
 **📖 Complete step-by-step production deployment guide for AWS EC2**
 
-> 👈 **Back to**: [Main README](./README.md) | **Related**: [Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md) | [Discord Alerts](./DISCORD-ALERTS-SETUP.md)
+> 👈 **Back to**: [Main README](../README.md) | **Related**: [Monitoring Troubleshooting](./monitoring-troubleshooting.md) | [Discord Alerts](./discord-alerts-setup.md)
 
 Get RedisForge running in production on AWS EC2 in under 30 minutes.
 
@@ -765,19 +765,19 @@ echo never > /sys/kernel/mm/transparent_hugepage/enabled
 
 After completing this deployment:
 
-1. **Configure Monitoring** → Continue to [Monitoring Setup](./README.md#monitoring-setup) in main README
-2. **Set Up Alerts** → Follow [Discord Alerts Setup Guide](./DISCORD-ALERTS-SETUP.md)
-3. **Troubleshoot Issues** → See [Monitoring Troubleshooting Guide](./MONITORING-TROUBLESHOOTING.md)
-4. **Scale Your Cluster** → See [Operations Guide](./README.md#operations) in main README
+1. **Configure Monitoring** → Continue to [Monitoring Setup](../README.md#monitoring-setup) in main README
+2. **Set Up Alerts** → Follow [Discord Alerts Setup Guide](./discord-alerts-setup.md)
+3. **Troubleshoot Issues** → See [Monitoring Troubleshooting Guide](./monitoring-troubleshooting.md)
+4. **Scale Your Cluster** → See [Operations Guide](../README.md#operations) in main README
 
 ---
 
 ## 📞 Support
 
-- **Main Documentation**: [README.md](./README.md)
-- **Monitoring Issues**: [MONITORING-TROUBLESHOOTING.md](./MONITORING-TROUBLESHOOTING.md)
-- **Discord Setup**: [DISCORD-ALERTS-SETUP.md](./DISCORD-ALERTS-SETUP.md)
-- **Report Issues**: [GitHub Issues](https://github.com/your-org/RedisForge/issues)
+- **Main Documentation**: [README.md](../README.md)
+- **Monitoring Issues**: [monitoring-troubleshooting.md](./monitoring-troubleshooting.md)
+- **Discord Setup**: [discord-alerts-setup.md](./discord-alerts-setup.md)
+- **Report Issues**: [GitHub Issues](https://github.com/siyamsarker/RedisForge/issues)
 
 ---
 
@@ -785,7 +785,7 @@ After completing this deployment:
 
 **🎉 Deployment Complete!**
 
-[👈 Back to Main README](./README.md) | [🐛 Report Issue](https://github.com/your-org/RedisForge/issues)
+[👈 Back to Main README](../README.md) | [🐛 Report Issue](https://github.com/siyamsarker/RedisForge/issues)
 
 </div>
 

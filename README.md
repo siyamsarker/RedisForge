@@ -462,10 +462,17 @@ See [`DISCORD-ALERTS-SETUP.md`](./DISCORD-ALERTS-SETUP.md) for complete setup gu
 **Quick setup:**
 
 ```bash
-# 1. Create Discord webhook in your server
-# 2. Update alertmanager.yml
-DISCORD_WEBHOOK="https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN"
-sed -i "s|<YOUR_DISCORD_WEBHOOK_URL>|${DISCORD_WEBHOOK}|g" monitoring/alertmanager/alertmanager.yml
+### Discord Webhook Integration
+
+Set up real-time Discord notifications for Push Gateway alerts.
+
+See [`discord-alerts-setup.md`](./docs/discord-alerts-setup.md) for complete setup guide.
+
+```bash
+# 1. Get Discord webhook URL from your server
+# 2. Update alertmanager.yaml
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/..." 
+sed -i "s|<YOUR_DISCORD_WEBHOOK_URL>|${DISCORD_WEBHOOK}|g" monitoring/alertmanager/alertmanager.yaml
 
 # 3. Deploy Alertmanager
 docker run -d \
@@ -474,7 +481,7 @@ docker run -d \
   -p 9093:9093 \
   -v $(pwd)/monitoring/alertmanager:/etc/alertmanager \
   prom/alertmanager:latest \
-  --config.file=/etc/alertmanager/alertmanager.yml
+  --config.file=/etc/alertmanager/alertmanager.yaml
 ```
 
 ---
@@ -608,9 +615,9 @@ sudo journalctl -u redisforge-metrics-push -n 50
 
 ### Detailed Troubleshooting Guides
 
-- **Monitoring Issues**: See [`MONITORING-TROUBLESHOOTING.md`](./MONITORING-TROUBLESHOOTING.md)
-- **Discord Alerts**: See [`DISCORD-ALERTS-SETUP.md`](./DISCORD-ALERTS-SETUP.md)
-- **Production Deployment**: See [`QUICKSTART.md`](./QUICKSTART.md)
+- **Monitoring Issues**: See [`monitoring-troubleshooting.md`](./docs/monitoring-troubleshooting.md)
+- **Discord Alerts**: See [`discord-alerts-setup.md`](./docs/discord-alerts-setup.md)
+- **Production Deployment**: See [`quickstart.md`](./docs/quickstart.md)
 
 ---
 
@@ -662,13 +669,13 @@ RedisForge/
 │   └── redis/Dockerfile            # Redis 8.2 image
 ├── monitoring/
 │   ├── alertmanager/
-│   │   ├── alertmanager.yml        # Discord webhook config
-│   │   └── push-gateway-alerts.yml # Push Gateway alert rules
+│   │   ├── alertmanager.yaml        # Discord webhook config
+│   │   └── push-gateway-alerts.yaml # Push Gateway alert rules
 │   ├── grafana/
 │   │   └── dashboards/
 │   │       └── redisforge-dashboard.json
 │   ├── prometheus/
-│   │   └── prometheus.yml          # Push Gateway scrape config
+│   │   └── prometheus.yaml          # Push Gateway scrape config
 │   └── systemd/
 │       └── redisforge-metrics-push.service
 ├── scripts/
@@ -680,10 +687,12 @@ RedisForge/
 │   ├── setup-exporters.sh          # Deploy monitoring exporters
 │   ├── push-metrics.sh             # Push metrics to Push Gateway
 │   └── test-cluster.sh             # Integration smoke tests
+├── docs/
+│   ├── quickstart.md                  # Production deployment guide
+│   ├── ubuntu-24.04-setup.md          # Ubuntu 24.04 LTS setup guide
+│   ├── monitoring-troubleshooting.md  # Monitoring troubleshooting
+│   └── discord-alerts-setup.md        # Discord integration guide
 ├── env.example                     # Environment configuration template
-├── QUICKSTART.md                   # Production deployment guide
-├── MONITORING-TROUBLESHOOTING.md   # Monitoring troubleshooting guide
-├── DISCORD-ALERTS-SETUP.md         # Discord integration guide
 ├── LICENSE                         # MIT License
 └── README.md                       # This file
 ```
@@ -754,10 +763,10 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 | Guide | Description | Use When |
 |-------|-------------|----------|
-| **[📖 Quick Start Guide](./QUICKSTART.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
-| **[� Ubuntu 24.04 Setup Guide](./UBUNTU-24.04-SETUP.md)** | Complete deployment guide specifically for Ubuntu 24.04 LTS | Deploying on Ubuntu 24.04 LTS (Noble Numbat) |
-| **[�🔧 Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
-| **[💬 Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)** | Configure Discord webhook notifications for alerts | Setting up Discord notifications |
+| **[📖 Quick Start Guide](./docs/quickstart.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
+| **[🐧 Ubuntu 24.04 Setup Guide](./docs/ubuntu-24.04-setup.md)** | Complete deployment guide specifically for Ubuntu 24.04 LTS | Deploying on Ubuntu 24.04 LTS (Noble Numbat) |
+| **[ Monitoring Troubleshooting](./docs/monitoring-troubleshooting.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
+| **[💬 Discord Alerts Setup](./docs/discord-alerts-setup.md)** | Configure Discord webhook notifications for alerts | Setting up Discord notifications |
 
 ### Quick Links by Task
 

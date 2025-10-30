@@ -1,8 +1,8 @@
-# RedisForge - Monitoring Troubleshooting Guide
+# RedisForge - Monitoring & Troubleshooting Guide
 
-**🔧 Comprehensive monitoring troubleshooting and debugging guide**
+**🔧 Comprehensive guide for debugging and fixing monitoring issues**
 
-> 👈 **Back to**: [Main README](./README.md) | **Related**: [Quick Start](./QUICKSTART.md) | [Discord Alerts](./DISCORD-ALERTS-SETUP.md)
+> 👈 **Back to**: [Main README](../README.md) | **Related**: [Quick Start](./quickstart.md) | [Discord Alerts](./discord-alerts-setup.md)
 
 This guide helps you diagnose and fix issues with the push-based monitoring system.
 
@@ -487,17 +487,17 @@ curl http://<pushgateway>:9091/metrics | grep redis_up
 
 ## 📚 Related Documentation
 
-- **[Main README](./README.md)** - Project overview and architecture
-- **[Quick Start Guide](./QUICKSTART.md)** - Production deployment steps
-- **[Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)** - Configure Discord notifications
+- **[Main README](../README.md)** - Project overview and architecture
+- **[Quick Start Guide](./quickstart.md)** - Production deployment steps
+- **[Discord Alerts Setup](./discord-alerts-setup.md)** - Configure Discord notifications
 
 ---
 
 ## 📞 Need More Help?
 
-- **GitHub Issues**: [Report a Bug](https://github.com/your-org/RedisForge/issues)
-- **Monitoring Setup**: See [Monitoring Setup](./README.md#monitoring-setup) in main README
-- **Discord Alerts**: See [Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)
+- **GitHub Issues**: [Report a Bug](https://github.com/siyamsarker/RedisForge/issues)
+- **Monitoring Setup**: See [Monitoring Setup](../README.md#monitoring-setup) in main README
+- **Discord Alerts**: See [Discord Alerts Setup](./discord-alerts-setup.md)
 
 ---
 
@@ -505,7 +505,7 @@ curl http://<pushgateway>:9091/metrics | grep redis_up
 
 **Remember:** Monitoring failures do NOT affect Redis/Envoy operations! 🎉
 
-[👈 Back to Main README](./README.md)
+[👈 Back to Main README](../README.md)
 
 </div>---
 

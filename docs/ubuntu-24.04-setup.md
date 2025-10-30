@@ -2,7 +2,7 @@
 
 **Complete guide for deploying RedisForge on Ubuntu 24.04 LTS**
 
-> 👈 **Back to**: [Main README](./README.md) | [Quick Start Guide](./QUICKSTART.md)
+> 👈 **Back to**: [Main README](../README.md) | [Quick Start Guide](./quickstart.md)
 
 ---
 
@@ -607,10 +607,10 @@ sudo apparmor_parser -R /etc/apparmor.d/docker
 
 ## 📚 Related Documentation
 
-- **[Main README](./README.md)** - Project overview
-- **[Quick Start Guide](./QUICKSTART.md)** - Detailed deployment
-- **[Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** - Fix issues
-- **[Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)** - Configure alerts
+- **[Main README](../README.md)** - Project overview
+- **[Quick Start Guide](./quickstart.md)** - Detailed deployment
+- **[Monitoring Troubleshooting](./monitoring-troubleshooting.md)** - Fix issues
+- **[Discord Alerts Setup](./discord-alerts-setup.md)** - Configure alerts
 
 ---
 
@@ -626,6 +626,6 @@ sudo apparmor_parser -R /etc/apparmor.d/docker
 
 **✅ Ubuntu 24.04 LTS Fully Supported!**
 
-[👈 Back to Main README](./README.md) | [📖 Quick Start Guide](./QUICKSTART.md)
+[👈 Back to Main README](../README.md) | [📖 Quick Start Guide](./quickstart.md)
 
 </div>

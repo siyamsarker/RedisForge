@@ -1,8 +1,8 @@
-# Discord Alert Integration for RedisForge
+# RedisForge - Discord Alerts Setup Guide
 
-**💬 Configure Discord webhook notifications for Push Gateway alerts**
+**💬 Configure Discord webhook notifications for Push Gateway monitoring alerts**
 
-> 👈 **Back to**: [Main README](./README.md) | **Related**: [Quick Start](./QUICKSTART.md) | [Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)
+> 👈 **Back to**: [Main README](../README.md) | **Related**: [Quick Start](./quickstart.md) | [Monitoring Troubleshooting](./monitoring-troubleshooting.md)
 
 This guide shows you how to receive Push Gateway alerts in Discord.
 
@@ -486,17 +486,17 @@ docker logs prometheus | grep -i error
 
 ## 📖 Related Documentation
 
-- **[Main README](./README.md)** - Project overview and features
-- **[Quick Start Guide](./QUICKSTART.md)** - Production deployment steps
-- **[Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)** - Fix monitoring issues
+- **[Main README](../README.md)** - Project overview and features
+- **[Quick Start Guide](./quickstart.md)** - Production deployment steps
+- **[Monitoring Troubleshooting](./monitoring-troubleshooting.md)** - Fix monitoring issues
 
 ---
 
 ## 📞 Need Help?
 
-- **Monitoring Issues**: See [MONITORING-TROUBLESHOOTING.md](./MONITORING-TROUBLESHOOTING.md)
-- **Setup Issues**: See [Quick Start Guide](./QUICKSTART.md)
-- **Report Issues**: [GitHub Issues](https://github.com/your-org/RedisForge/issues)
+- **Monitoring Issues**: See [monitoring-troubleshooting.md](./monitoring-troubleshooting.md)
+- **Setup Issues**: See [Quick Start Guide](./quickstart.md)
+- **Report Issues**: [GitHub Issues](https://github.com/siyamsarker/RedisForge/issues)
 
 ---
 
@@ -504,7 +504,7 @@ docker logs prometheus | grep -i error
 
 **🎉 Discord Alerts Configured!**
 
-[👈 Back to Main README](./README.md) | [🔧 Troubleshoot Monitoring](./MONITORING-TROUBLESHOOTING.md)
+[👈 Back to Main README](../README.md) | [🔧 Troubleshoot Monitoring](./monitoring-troubleshooting.md)
 
 </div>
 ---
