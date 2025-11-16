@@ -683,8 +683,7 @@ RedisForge/
 │   ├── setup-exporters.sh          # Deploy monitoring exporters
 │   └── test-cluster.sh             # Integration smoke tests
 ├── docs/
-│   ├── quickstart.md               # Production deployment guide
-│   └── ubuntu-24.04-setup.md       # Ubuntu 24.04 LTS setup guide
+│   └── quickstart.md               # Production deployment guide
 ├── env.example                     # Environment configuration template
 ├── LICENSE                         # MIT License
 └── README.md                       # This file
@@ -757,7 +756,6 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 | Guide | Description | Use When |
 |-------|-------------|----------|
 | **[📖 Quick Start Guide](./docs/quickstart.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
-| **[🐧 Ubuntu 24.04 Setup Guide](./docs/ubuntu-24.04-setup.md)** | Complete deployment guide specifically for Ubuntu 24.04 LTS | Deploying on Ubuntu 24.04 LTS (Noble Numbat) |
 
 ### Quick Links by Task
 
@@ -765,7 +763,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 - 🚀 **Deploy to production** → See [Quick Start Guide](./docs/quickstart.md)
 - 📊 **Set up monitoring** → See [Monitoring Setup](#-monitoring-setup) above
-- 🧱 **Provision Ubuntu hosts** → See [Ubuntu 24.04 Guide](./docs/ubuntu-24.04-setup.md)
+- 🧱 **Provision Ubuntu hosts** → Follow your standard OS hardening guide
 - 📈 **Scale the cluster** → See [Operations](#operations) above
 - 💾 **Configure backups** → See [Operations](#operations) above
 - 🔍 **Debug cluster issues** → See [Troubleshooting](#troubleshooting) above
