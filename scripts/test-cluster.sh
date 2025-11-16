@@ -10,6 +10,9 @@ set -euo pipefail
 ENVOY_HOST=${1:-localhost}
 PORT=${2:-6379}
 PASS=${REDIS_REQUIREPASS:-}
+TLS_ENABLED=${TLS_ENABLED:-false}
+TLS_CA_FILE=${TLS_CA_FILE:-}
+TLS_SERVER_NAME=${TLS_SERVER_NAME:-redisforge.local}
 
 # Colors
 GREEN='\033[0;32m'
@@ -31,11 +34,22 @@ echo "Target: ${ENVOY_HOST}:${PORT}"
 echo "================================================"
 echo ""
 
-# Build auth arguments
+# Build auth/TLS arguments
 AUTH_ARGS=()
 if [[ -n "$PASS" ]]; then
   AUTH_ARGS+=(--pass "$PASS")
 fi
+
+TLS_ARGS=()
+if [[ "$TLS_ENABLED" == "true" ]]; then
+  TLS_ARGS+=(--tls)
+  TLS_ARGS+=(--sni "$TLS_SERVER_NAME")
+  if [[ -n "$TLS_CA_FILE" ]]; then
+    TLS_ARGS+=(--cacert "$TLS_CA_FILE")
+  fi
+fi
+
+CLI_ARGS=("${TLS_ARGS[@]}" "${AUTH_ARGS[@]}")
 
 # Trap to ensure cleanup
 cleanup() {
@@ -48,7 +62,7 @@ trap cleanup EXIT INT TERM
 
 # Test 1: PING
 echo "Test 1: PING"
-if redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" ping 2>/dev/null | grep -q PONG; then
+if redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" ping 2>/dev/null | grep -q PONG; then
   log "PING successful"
 else
   error "PING failed"
@@ -61,12 +75,12 @@ echo "Test 2: SET/GET"
 TEST_KEY="redisforge:test:$(date +%s)"
 TEST_VALUE="test-value-$(date +%s)"
 
-if redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" set "$TEST_KEY" "$TEST_VALUE" EX 60 >/dev/null 2>&1; then
-  RETRIEVED=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" get "$TEST_KEY" 2>/dev/null || echo "")
+if redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" set "$TEST_KEY" "$TEST_VALUE" EX 60 >/dev/null 2>&1; then
+  RETRIEVED=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" get "$TEST_KEY" 2>/dev/null || echo "")
   if [[ "$RETRIEVED" == "$TEST_VALUE" ]]; then
     log "SET/GET successful"
     # Cleanup test key
-    redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" del "$TEST_KEY" >/dev/null 2>&1 || true
+    redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" del "$TEST_KEY" >/dev/null 2>&1 || true
   else
     error "SET/GET failed - value mismatch (expected: $TEST_VALUE, got: $RETRIEVED)"
     exit 1
@@ -83,12 +97,12 @@ PUBSUB_CHANNEL="redisforge:test:pubsub:$(date +%s)"
 PUBSUB_MESSAGE="test-message-$(date +%s)"
 PUBSUB_OUTPUT="$(mktemp -t redisforge-pubsub.XXXXXX)"
 
-redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" --csv subscribe "$PUBSUB_CHANNEL" > "$PUBSUB_OUTPUT" 2>/dev/null &
+redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" --csv subscribe "$PUBSUB_CHANNEL" > "$PUBSUB_OUTPUT" 2>/dev/null &
 SUBSCRIBER_PID=$!
 
 sleep 1
 
-if ! redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" publish "$PUBSUB_CHANNEL" "$PUBSUB_MESSAGE" >/dev/null 2>&1; then
+if ! redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" publish "$PUBSUB_CHANNEL" "$PUBSUB_MESSAGE" >/dev/null 2>&1; then
   kill "$SUBSCRIBER_PID" 2>/dev/null || true
   wait "$SUBSCRIBER_PID" 2>/dev/null || true
   error "Failed to publish Pub/Sub message"
@@ -121,9 +135,14 @@ echo ""
 
 # Test 4: Cluster Info
 echo "Test 4: Cluster Information"
-if CLUSTER_INFO=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" cluster info 2>/dev/null); then
+if CLUSTER_INFO=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" cluster info 2>/dev/null); then
   if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
     log "Cluster state: OK"
+    SLOTS_ASSIGNED=$(echo "$CLUSTER_INFO" | awk -F: '/cluster_slots_assigned/ {gsub("\r","",$2); print $2}')
+    if [[ "${SLOTS_ASSIGNED:-0}" -ne 16384 ]]; then
+      error "Cluster slots assigned (${SLOTS_ASSIGNED}) does not equal 16384"
+      exit 1
+    fi
   elif echo "$CLUSTER_INFO" | grep -q "cluster_state:fail"; then
     error "Cluster state: FAIL"
     echo "$CLUSTER_INFO" | head -10
@@ -138,7 +157,7 @@ echo ""
 
 # Test 5: Server Info
 echo "Test 5: Server Information"
-if INFO=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" info server 2>/dev/null); then
+if INFO=$(redis-cli -h "$ENVOY_HOST" -p "$PORT" "${CLI_ARGS[@]}" info server 2>/dev/null); then
   REDIS_VERSION=$(echo "$INFO" | grep "^redis_version:" | cut -d: -f2 | tr -d '\r')
   UPTIME=$(echo "$INFO" | grep "^uptime_in_seconds:" | cut -d: -f2 | tr -d '\r')
   

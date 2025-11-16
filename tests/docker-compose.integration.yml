@@ -1,0 +1,113 @@
+version: "3.9"
+
+x-redis-env: &redis-env
+  REDIS_REQUIREPASS: "DevPassw0rd!"
+  REDIS_ACL_PASS: "DevPassw0rd!"
+  REDIS_READONLY_PASS: "DevReadPass!"
+  REDIS_MONITOR_PASS: "DevMonPass!"
+  REDIS_REPLICATION_PASS: "DevReplicaPass!"
+  REDIS_ACL_USER: "app_user"
+  REDIS_READONLY_USER: "readonly_user"
+  REDIS_MONITOR_USER: "monitor_user"
+  REDIS_REPLICATION_USER: "replication_user"
+  REDIS_MAXMEMORY: "512mb"
+  REDIS_AOF_ENABLED: "yes"
+  REDIS_APPEND_FSYNC: "everysec"
+
+services:
+  redis-master-1:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-master-1
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-master-1
+    networks: [redisforge-int]
+
+  redis-master-2:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-master-2
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-master-2
+    networks: [redisforge-int]
+
+  redis-master-3:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-master-3
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-master-3
+    networks: [redisforge-int]
+
+  redis-replica-1:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-replica-1
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-1
+    networks: [redisforge-int]
+
+  redis-replica-2:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-replica-2
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-2
+    networks: [redisforge-int]
+
+  redis-replica-3:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-replica-3
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-3
+    networks: [redisforge-int]
+
+  envoy:
+    build:
+      context: ..
+      dockerfile: docker/envoy/Dockerfile
+    hostname: envoy
+    depends_on:
+      - redis-master-1
+      - redis-master-2
+      - redis-master-3
+    environment:
+      <<: *redis-env
+      REDIS_MASTER_1_HOST: redis-master-1
+      REDIS_MASTER_2_HOST: redis-master-2
+      REDIS_MASTER_3_HOST: redis-master-3
+      ENVOY_LISTENER_PORT: 6379
+      ENVOY_ADMIN_PORT: 9901
+      ENVOY_TLS_CERT_PATH: /etc/envoy/certs/server.crt
+      ENVOY_TLS_KEY_PATH: /etc/envoy/certs/server.key
+    volumes:
+      - ../config/tls/dev:/etc/envoy/certs:ro
+    ports:
+      - "6379:6379"
+      - "9901:9901"
+    networks: [redisforge-int]
+
+  toolbox:
+    image: redis:7.2-alpine
+    command: ["sleep", "infinity"]
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    networks: [redisforge-int]
+
+networks:
+  redisforge-int:
+    driver: bridge

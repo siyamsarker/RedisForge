@@ -175,6 +175,20 @@ REDIS_EXPORTER_PORT=9121
 NODE_EXPORTER_PORT=9100
 ```
 
+### Generate TLS Certificate for Envoy
+
+Run this **once per environment** (from your workstation or each Envoy host) to
+produce a self-signed bundle. Replace with CA-issued certificates for production.
+
+```bash
+./scripts/generate-certs.sh config/tls/prod
+```
+
+Copy the resulting `server.crt`/`server.key` to every Envoy node and mount them
+at `/etc/envoy/certs` when running `scripts/deploy.sh envoy`. Adjust
+`ENVOY_TLS_CERT_PATH` and `ENVOY_TLS_KEY_PATH` in `.env` if you use a different
+location.
+
 ### Instance-Specific Configuration
 
 On **each Redis instance**, set its announce IP:
@@ -700,8 +714,9 @@ After completing this deployment:
 
 1. **Configure Monitoring** → Continue to [Monitoring Setup](../README.md#-monitoring-setup) in the main README.
 2. **Set Up Alerts** → Wire Alertmanager or your preferred notification system to Prometheus.
-3. **Troubleshoot Issues** → Use the [Troubleshooting](../README.md#-troubleshooting) section in the main README.
-4. **Scale Your Cluster** → See [Operations Guide](../README.md#operations) in the main README.
+3. **Run Integration Tests** → Execute `tests/run-integration.sh` from the repo root before/after making changes.
+4. **Troubleshoot Issues** → Use the [Troubleshooting](../README.md#-troubleshooting) section in the main README.
+5. **Scale Your Cluster** → See [Operations Guide](../README.md#operations) in the main README.
 
 ---
 

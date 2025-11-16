@@ -232,6 +232,7 @@ graph TB
 ### Envoy Proxy
 
 - ✅ **Redis Proxy Filter** with cluster discovery
+- ✅ **mTLS-ready Listener** (TLS termination with self-signed defaults)
 - ✅ **Topology Refresh** (10s default, configurable)
 - ✅ **Maglev Consistent Hashing** for even distribution
 - ✅ **Health Checks** & outlier detection
@@ -250,7 +251,7 @@ graph TB
 
 ### Monitoring
 
-- ✅ **Prometheus Pull Architecture** (native scraping)
+- ✅ **Prometheus Pull Architecture** (native scraping with drop-in compose stack)
 - ✅ **redis_exporter** for Redis metrics
 - ✅ **node_exporter** for system metrics
 - ✅ **Envoy Metrics** via admin `/stats/prometheus`
@@ -345,6 +346,15 @@ echo "REDIS_REQUIREPASS=$REDIS_PASS" >> .env
 
 # Docker entrypoints refuse to start if any secret remains `CHANGE_ME`,
 # so update every password before continuing.
+
+# Generate TLS cert/key for Envoy (self-signed dev bundle)
+./scripts/generate-certs.sh config/tls/prod
+```
+
+Mount the resulting `server.crt` and `server.key` into every Envoy host (see
+`config/tls/README.md`). For production, replace them with CA-issued
+certificates and keep the paths synchronized via `ENVOY_TLS_CERT_PATH` and
+`ENVOY_TLS_KEY_PATH`.
 ```
 
 ### 5. Deploy Redis on Each Redis Instance
@@ -420,36 +430,22 @@ This deploys (using host networking so exporters read the local Redis instance d
 - `redis_exporter` on port 9121
 - `node_exporter` on port 9100
 
-### Step 2: Configure Prometheus to Scrape Exporters
+### Step 2: Start the Reference Monitoring Stack
 
-Add jobs similar to the following to your Prometheus configuration (replace hostnames with your instance IPs or DNS names):
+From a management host with Docker installed:
 
-```yaml
-scrape_configs:
-  - job_name: 'redisforge-redis'
-    static_configs:
-      - targets:
-          - '10.0.1.10:9121'
-          - '10.0.2.11:9121'
-        labels:
-          role: redis
-
-  - job_name: 'redisforge-node'
-    static_configs:
-      - targets:
-          - '10.0.1.10:9100'
-          - '10.0.2.11:9100'
-        labels:
-          role: system
-
-  - job_name: 'redisforge-envoy'
-    metrics_path: /stats/prometheus
-    static_configs:
-      - targets:
-          - '<envoy-host>:9901'
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
 ```
 
-Reload Prometheus:
+This launches:
+
+- Prometheus (preconfigured with `monitoring/prometheus/prometheus.yaml`)
+- Alertmanager (Discord-ready sample in `monitoring/alertmanager/alertmanager.yaml`)
+- Grafana (auto-provisioned dashboards/datasources)
+
+Update `monitoring/prometheus/prometheus.yaml` with the private IPs of your Redis/Envoy hosts
+before launching. When changes are made, reload Prometheus:
 
 ```bash
 curl -X POST http://localhost:9090/-/reload
@@ -465,6 +461,7 @@ curl -X POST http://localhost:9090/-/reload
 ---
 
 ## 🔧 Operations
+- **TLS Maintenance**: Regenerate or rotate the Envoy listener certificate with `./scripts/generate-certs.sh` and restart Envoy. Remember to distribute updated CA bundles to every client consuming the TLS endpoint.
 
 ### Scaling Up
 
@@ -580,6 +577,35 @@ curl http://<envoy-ip>:9901/stats/prometheus | grep redis
 ---
 
 ## 🔍 Troubleshooting
+- **Integration Harness**: Run `tests/run-integration.sh` to spin up a disposable cluster (6 Redis nodes + Envoy) and execute the full smoke test suite locally before touching production.
+
+---
+
+## 🧪 Integration Tests
+
+The repository ships with a disposable Docker Compose environment that builds the Redis and Envoy
+images, creates a 3x master/replica cluster, and validates the full request path (including TLS)
+via Envoy.
+
+```bash
+# One-time TLS material for tests
+./scripts/generate-certs.sh config/tls/dev
+
+# Launch the integration harness
+tests/run-integration.sh
+```
+
+The script will:
+
+1. Build the Redis/Envoy images from the current working tree.
+2. Start 6 Redis nodes, Envoy, and a toolbox container on a dedicated network.
+3. Initialize the Redis Cluster with 3 masters and 3 replicas.
+4. Execute `scripts/test-cluster.sh` through Envoy (TLS listener).
+5. Tear everything down.
+
+Use this before every commit/PR to ensure behavioral parity across environments.
+
+---
 
 ### Common Issues
 
@@ -660,12 +686,15 @@ RedisForge/
 ├── config/
 │   ├── envoy/
 │   │   └── envoy.yaml              # Envoy redis_proxy configuration
-│   └── redis/
-│       ├── redis.conf              # Redis production config
-│       └── users.acl               # Redis ACL definitions
+│   ├── redis/
+│   │   ├── redis.conf              # Redis production config
+│   │   └── users.acl               # Redis ACL definitions
+│   └── tls/
+│       └── README.md               # TLS generation guidance (certs ignored)
 ├── docker/
 │   ├── envoy/Dockerfile            # Envoy v1.32-latest image
 │   └── redis/Dockerfile            # Redis 8.2 image
+├── docker-compose.monitoring.yml   # Reference Prometheus/Alertmanager/Grafana stack
 ├── monitoring/
 │   ├── alertmanager/
 │   │   └── alertmanager.yaml        # Example webhook config
@@ -681,7 +710,11 @@ RedisForge/
 │   ├── backup.sh                   # Backup AOF to S3
 │   ├── log-rotate.sh               # Rotate Redis logs
 │   ├── setup-exporters.sh          # Deploy monitoring exporters
-│   └── test-cluster.sh             # Integration smoke tests
+│   ├── test-cluster.sh             # Integration smoke tests
+│   └── generate-certs.sh           # Helper to mint TLS materials
+├── tests/
+│   ├── docker-compose.integration.yml # Disposable 3x3 Redis + Envoy stack
+│   └── run-integration.sh             # CI/local verification script
 ├── docs/
 │   └── quickstart.md               # Production deployment guide
 ├── env.example                     # Environment configuration template
