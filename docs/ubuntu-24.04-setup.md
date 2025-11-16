@@ -324,7 +324,6 @@ nano .env
 # REDIS_ACL_PASS=<generated-password>
 # REDIS_MAXMEMORY=48gb  # For 64GB instance
 # REDIS_CLUSTER_ANNOUNCE_IP=<this-instance-private-ip>
-# PROMETHEUS_PUSHGATEWAY=http://<pushgateway-ip>:9091
 ```
 
 ---
@@ -397,27 +396,37 @@ curl http://localhost:9121/metrics | head
 curl http://localhost:9100/metrics | head
 ```
 
-### Configure Continuous Push Service
+### Configure Prometheus Scraping
+
+Update your Prometheus server configuration with jobs similar to:
+
+```yaml
+scrape_configs:
+  - job_name: 'redisforge-redis'
+    static_configs:
+      - targets:
+          - '10.0.1.10:9121'
+          - '10.0.2.11:9121'
+          - '10.0.3.12:9121'
+
+  - job_name: 'redisforge-node'
+    static_configs:
+      - targets:
+          - '10.0.1.10:9100'
+          - '10.0.2.11:9100'
+          - '10.0.3.12:9100'
+
+  - job_name: 'redisforge-envoy'
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets:
+          - '<envoy-host>:9901'
+```
+
+Reload Prometheus:
 
 ```bash
-# Copy systemd service file
-sudo cp monitoring/systemd/redisforge-metrics-push.service /etc/systemd/system/
-
-# Update service file paths if needed
-sudo nano /etc/systemd/system/redisforge-metrics-push.service
-
-# Change User from ec2-user to ubuntu:
-# User=ubuntu
-# WorkingDirectory=/home/ubuntu/RedisForge
-
-# Enable and start service
-sudo systemctl daemon-reload
-sudo systemctl enable redisforge-metrics-push
-sudo systemctl start redisforge-metrics-push
-
-# Verify service is running
-sudo systemctl status redisforge-metrics-push
-sudo journalctl -u redisforge-metrics-push -f
+curl -X POST http://your-prometheus:9090/-/reload
 ```
 
 ---
@@ -429,9 +438,6 @@ sudo journalctl -u redisforge-metrics-push -f
 ```bash
 # Check Docker
 sudo systemctl status docker
-
-# Check metrics push service
-sudo systemctl status redisforge-metrics-push
 
 # Check UFW firewall
 sudo ufw status
@@ -458,11 +464,12 @@ redis-cli -h <envoy-ip> -a your_password GET test
 curl http://localhost:9121/metrics | grep redis_up
 curl http://localhost:9100/metrics | grep node_cpu
 
-# Check Push Gateway
-curl http://<pushgateway>:9091/metrics | grep redis_up
+# Verify Prometheus targets from the Prom server
+curl http://your-prometheus:9090/api/v1/targets
 
-# Check systemd service logs
-sudo journalctl -u redisforge-metrics-push -n 50
+# Run sample queries
+curl 'http://your-prometheus:9090/api/v1/query?query=redis_up'
+curl 'http://your-prometheus:9090/api/v1/query?query=node_load1'
 ```
 
 ---
@@ -512,24 +519,7 @@ sudo netstat -tulpn | grep 6379
 sudo ufw allow from <ip-address> to any port 6379
 ```
 
-### Issue 4: systemd Service Not Starting
-
-```bash
-# Check service status
-sudo systemctl status redisforge-metrics-push
-
-# View logs
-sudo journalctl -u redisforge-metrics-push -n 100 --no-pager
-
-# Check file permissions
-ls -la /home/ubuntu/RedisForge/scripts/push-metrics.sh
-chmod +x /home/ubuntu/RedisForge/scripts/push-metrics.sh
-
-# Verify .env file exists
-ls -la /home/ubuntu/RedisForge/.env
-```
-
-### Issue 5: AppArmor or SELinux Restrictions
+### Issue 4: AppArmor or SELinux Restrictions
 
 ```bash
 # Check AppArmor status
@@ -600,7 +590,7 @@ sudo apparmor_parser -R /etc/apparmor.d/docker
 - [ ] Redis cluster deployed and initialized
 - [ ] Envoy proxy deployed
 - [ ] Monitoring exporters deployed
-- [ ] systemd metrics push service enabled
+- [ ] Prometheus scraping configured
 - [ ] All services verified and tested
 
 ---
@@ -609,8 +599,6 @@ sudo apparmor_parser -R /etc/apparmor.d/docker
 
 - **[Main README](../README.md)** - Project overview
 - **[Quick Start Guide](./quickstart.md)** - Detailed deployment
-- **[Monitoring Troubleshooting](./monitoring-troubleshooting.md)** - Fix issues
-- **[Discord Alerts Setup](./discord-alerts-setup.md)** - Configure alerts
 
 ---
 

@@ -84,13 +84,21 @@ deploy_redis() {
     -e REDIS_AOF_ENABLED="${REDIS_AOF_ENABLED:-yes}" \
     -e REDIS_APPEND_FSYNC="${REDIS_APPEND_FSYNC:-everysec}" \
     -e REDIS_REQUIREPASS="${REDIS_REQUIREPASS}" \
+    -e REDIS_ACL_USER="${REDIS_ACL_USER:-app_user}" \
+    -e REDIS_ACL_PASS="${REDIS_ACL_PASS}" \
+    -e REDIS_READONLY_USER="${REDIS_READONLY_USER:-readonly_user}" \
+    -e REDIS_READONLY_PASS="${REDIS_READONLY_PASS}" \
+    -e REDIS_MONITOR_USER="${REDIS_MONITOR_USER:-monitor_user}" \
+    -e REDIS_MONITOR_PASS="${REDIS_MONITOR_PASS}" \
+    -e REDIS_REPLICATION_USER="${REDIS_REPLICATION_USER:-replication_user}" \
+    -e REDIS_REPLICATION_PASS="${REDIS_REPLICATION_PASS}" \
     -e REDIS_MAXMEMORY="${REDIS_MAXMEMORY:-8gb}" \
     -e REDIS_MAXMEMORY_POLICY="${REDIS_MAXMEMORY_POLICY:-allkeys-lru}" \
     -e REDIS_LOGLEVEL="${REDIS_LOGLEVEL:-notice}" \
     -v "${REPO_ROOT}/data/redis:/data" \
     -v "${REPO_ROOT}/logs/redis:/var/log/redis" \
-    -v "${REPO_ROOT}/config/redis/redis.conf:/etc/redis/redis.conf:ro" \
-    -v "${REPO_ROOT}/config/redis/users.acl:/etc/redis/users.acl:ro" \
+    -v "${REPO_ROOT}/config/redis/redis.conf:/etc/redis/templates/redis.conf:ro" \
+    -v "${REPO_ROOT}/config/redis/users.acl:/etc/redis/templates/users.acl:ro" \
     redisforge/redis:8.2
   
   log "Redis deployed successfully!"
@@ -132,7 +140,7 @@ deploy_envoy() {
     -e ENVOY_MAX_CONNECTIONS="${ENVOY_MAX_CONNECTIONS:-10000}" \
     -e ENVOY_MAX_PENDING_REQUESTS="${ENVOY_MAX_PENDING_REQUESTS:-10000}" \
     -e ENVOY_RETRY_ATTEMPTS="${ENVOY_RETRY_ATTEMPTS:-3}" \
-    -v "${REPO_ROOT}/config/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
+    -v "${REPO_ROOT}/config/envoy/envoy.yaml:/etc/envoy/templates/envoy.yaml:ro" \
     redisforge/envoy:latest
   
   log "Envoy deployed successfully!"

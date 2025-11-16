@@ -77,45 +77,45 @@ else
 fi
 echo ""
 
-# Test 3: Pub/Sub (with timeout)
+# Test 3: Pub/Sub (with verification)
 echo "Test 3: Pub/Sub"
 PUBSUB_CHANNEL="redisforge:test:pubsub:$(date +%s)"
 PUBSUB_MESSAGE="test-message-$(date +%s)"
-PUBSUB_OUTPUT="/tmp/redisforge-pubsub-$$"
+PUBSUB_OUTPUT="$(mktemp -t redisforge-pubsub.XXXXXX)"
 
-# Start subscriber in background
-(
-  redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" subscribe "$PUBSUB_CHANNEL" 2>/dev/null > "$PUBSUB_OUTPUT" &
-  SUBSCRIBER_PID=$!
-  
-  # Give subscriber time to connect
-  sleep 2
-  
-  # Publish message
-  echo "$PUBSUB_MESSAGE" | redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" --csv publish "$PUBSUB_CHANNEL" >/dev/null 2>&1 || true
-  
-  # Wait a bit for message to be received
-  sleep 1
-  
-  # Kill subscriber
-  kill $SUBSCRIBER_PID 2>/dev/null || true
-  wait $SUBSCRIBER_PID 2>/dev/null || true
-) &
+redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" --csv subscribe "$PUBSUB_CHANNEL" > "$PUBSUB_OUTPUT" 2>/dev/null &
+SUBSCRIBER_PID=$!
 
-PUBSUB_JOB=$!
+sleep 1
 
-# Wait for pub/sub test with timeout
-if timeout 10s bash -c "wait $PUBSUB_JOB" 2>/dev/null; then
-  if [[ -f "$PUBSUB_OUTPUT" ]] && grep -q "$PUBSUB_MESSAGE" "$PUBSUB_OUTPUT" 2>/dev/null; then
-    log "Pub/Sub successful"
-  else
-    log "Pub/Sub test completed (message delivery not verified)"
-  fi
-else
-  log "Pub/Sub test completed (timeout)"
+if ! redis-cli -h "$ENVOY_HOST" -p "$PORT" "${AUTH_ARGS[@]}" publish "$PUBSUB_CHANNEL" "$PUBSUB_MESSAGE" >/dev/null 2>&1; then
+  kill "$SUBSCRIBER_PID" 2>/dev/null || true
+  wait "$SUBSCRIBER_PID" 2>/dev/null || true
+  error "Failed to publish Pub/Sub message"
+  rm -f "$PUBSUB_OUTPUT" 2>/dev/null || true
+  exit 1
 fi
 
-# Cleanup
+PUBSUB_SUCCESS=false
+for _ in {1..10}; do
+  if grep -q "$PUBSUB_MESSAGE" "$PUBSUB_OUTPUT" 2>/dev/null; then
+    PUBSUB_SUCCESS=true
+    break
+  fi
+  sleep 0.5
+done
+
+kill "$SUBSCRIBER_PID" 2>/dev/null || true
+wait "$SUBSCRIBER_PID" 2>/dev/null || true
+
+if $PUBSUB_SUCCESS; then
+  log "Pub/Sub successful"
+else
+  error "Pub/Sub message was not received on channel ${PUBSUB_CHANNEL}"
+  rm -f "$PUBSUB_OUTPUT" 2>/dev/null || true
+  exit 1
+fi
+
 rm -f "$PUBSUB_OUTPUT" 2>/dev/null || true
 echo ""
 

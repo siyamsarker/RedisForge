@@ -38,13 +38,14 @@ require() {
 
 deploy_redis_exporter() {
   log "Deploying Redis Exporter..."
+  local exporter_port="${REDIS_EXPORTER_PORT:-9121}"
   
   # Stop existing container if running
   docker stop redis-exporter 2>/dev/null || true
   docker rm redis-exporter 2>/dev/null || true
   
   # Determine Redis address (use localhost if not specified)
-  REDIS_ADDR="${REDIS_HOST:-localhost}:${REDIS_PORT:-6379}"
+  REDIS_ADDR="${REDIS_HOST:-127.0.0.1}:${REDIS_PORT:-6379}"
   
   # Build docker run command
   DOCKER_CMD=(
@@ -52,10 +53,10 @@ deploy_redis_exporter() {
     --name redis-exporter
     --hostname redis-exporter
     --restart unless-stopped
-    -p "${REDIS_EXPORTER_PORT:-9121}:9121"
+    --network host
     -e REDIS_ADDR="${REDIS_ADDR}"
     -e REDIS_PASSWORD="${REDIS_REQUIREPASS}"
-    -e REDIS_USER="${REDIS_ACL_USER:-default}"
+    -e REDIS_USER="${REDIS_ACL_USER:-app_user}"
   )
   
   # Run redis_exporter container
@@ -64,18 +65,14 @@ deploy_redis_exporter() {
     "${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.62.0}" \
     --redis.addr="${REDIS_ADDR}" \
     --redis.password="${REDIS_REQUIREPASS}" \
-    --redis.user="${REDIS_ACL_USER:-default}" \
-    --web.listen-address=":9121" \
+    --redis.user="${REDIS_ACL_USER:-app_user}" \
+    --web.listen-address=":${exporter_port}" \
     --web.telemetry-path="/metrics"
   
   log "Redis Exporter deployed successfully!"
-  info "Metrics endpoint: http://localhost:${REDIS_EXPORTER_PORT:-9121}/metrics"
+  info "Metrics endpoint: http://localhost:${exporter_port}/metrics"
   
-  # If Prometheus Push Gateway is configured, note it
-  if [[ -n "${PROMETHEUS_PUSHGATEWAY:-}" ]]; then
-    info "Note: Exporters are pull-based. Configure Prometheus to scrape the endpoints."
-    info "Or use a separate agent to push metrics to: ${PROMETHEUS_PUSHGATEWAY}"
-  fi
+  info "Configure Prometheus to scrape this endpoint directly."
 }
 
 deploy_node_exporter() {
@@ -107,96 +104,62 @@ print_prometheus_config() {
   cat << EOF
 
 ================================================================================
-PUSH-BASED MONITORING SETUP
+PROMETHEUS PULL MONITORING SETUP
 ================================================================================
 
-RedisForge uses PUSH-based monitoring architecture:
+RedisForge now relies on native Prometheus scraping:
 
-  Exporters → Push Script (every ${METRICS_PUSH_INTERVAL:-30}s) → Push Gateway → Prometheus
+  Prometheus → redis_exporter (9121) / node_exporter (9100) / Envoy (9901)
 
-STEP 1: Configure Push Gateway
-Edit .env and set:
-  PROMETHEUS_PUSHGATEWAY=http://your-pushgateway:9091
-  METRICS_PUSH_INTERVAL=30
+STEP 1: Ensure exporters are running on every Redis node (already handled by this script).
 
-STEP 2: Start Metrics Push Service
-
-Option A: Using systemd (recommended for production):
-  sudo cp monitoring/systemd/redisforge-metrics-push.service /etc/systemd/system/
-  sudo systemctl daemon-reload
-  sudo systemctl enable redisforge-metrics-push
-  sudo systemctl start redisforge-metrics-push
-  
-  # Check status
-  sudo systemctl status redisforge-metrics-push
-  sudo journalctl -u redisforge-metrics-push -f
-
-Option B: Using screen/tmux (testing):
-  screen -S metrics-push
-  ./scripts/push-metrics.sh
-  # Detach with Ctrl+A, D
-
-Option C: Using nohup (background):
-  nohup ./scripts/push-metrics.sh > /var/log/metrics-push.log 2>&1 &
-
-STEP 3: Configure Prometheus to Scrape Push Gateway
-
-Add to your Prometheus configuration:
+STEP 2: Add the exporters to your Prometheus config. Example:
 
 scrape_configs:
-  - job_name: 'pushgateway'
-    honor_labels: true
+  - job_name: 'redisforge-redis'
+    metrics_path: /metrics
     static_configs:
-    - targets: ['<pushgateway-host>:9091']
+      - targets:
+          - '<redis-node-1>:${REDIS_EXPORTER_PORT:-9121}'
+          - '<redis-node-2>:${REDIS_EXPORTER_PORT:-9121}'
+        labels:
+          role: redis
 
-IMPORTANT NOTES:
-1. Exporters DO NOT store historical data locally
-   - They only expose current metrics state
-   - Metrics are pushed to Push Gateway every ${METRICS_PUSH_INTERVAL:-30} seconds
-   - Push Gateway stores metrics until Prometheus scrapes them
+  - job_name: 'redisforge-node'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - '<redis-node-1>:${NODE_EXPORTER_PORT:-9100}'
+          - '<redis-node-2>:${NODE_EXPORTER_PORT:-9100}'
+        labels:
+          role: system
 
-2. Push Gateway acts as a buffer:
-   - Stores latest metrics from all instances
-   - Prometheus scrapes from gateway (not exporters directly)
-   - If Push Gateway restarts, metrics are lost (not on disk)
+  - job_name: 'redisforge-envoy'
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets:
+          - '<envoy-host>:${ENVOY_ADMIN_PORT:-9901}'
+        labels:
+          role: envoy
 
-3. Data Flow:
-   a) Exporters collect metrics from Redis/System
-   b) push-metrics.sh reads from exporters and pushes to gateway
-   c) Push Gateway stores in memory
-   d) Prometheus scrapes gateway and stores in time-series DB
-   e) Grafana queries Prometheus for visualization
+Replace the placeholder hostnames with the private IPs or DNS names of your instances.
+
+STEP 3: Reload Prometheus:
+  curl -X POST http://<prometheus-host>:9090/-/reload
 
 ================================================================================
 VERIFICATION
 ================================================================================
 
-Test push manually:
-  # Single push
-  ./scripts/push-metrics.sh &
-  sleep 5
-  pkill -f push-metrics.sh
+Check targets:
+  curl http://<prometheus-host>:9090/api/v1/targets | jq '.data.activeTargets'
 
-Check Push Gateway:
-  curl http://<pushgateway>:9091/metrics | grep redisforge
+Run sample queries:
+  curl "http://<prometheus-host>:9090/api/v1/query?query=redis_up"
+  curl "http://<prometheus-host>:9090/api/v1/query?query=node_load1"
 
-Check Prometheus targets:
-  curl http://<prometheus>:9090/api/v1/targets
-
-Query metrics in Prometheus:
-  curl http://<prometheus>:9090/api/v1/query?query=redis_up
-
-================================================================================
-GRAFANA DASHBOARD
-================================================================================
-
-Import the pre-built Grafana dashboard from:
+Grafana dashboard:
   monitoring/grafana/dashboards/redisforge-dashboard.json
-
-This dashboard queries Prometheus for:
-  - Redis cluster health and performance
-  - System resource utilization
-  - Envoy proxy metrics
 
 ================================================================================
 

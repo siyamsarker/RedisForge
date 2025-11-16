@@ -8,14 +8,14 @@
 # ------------------------------------------------------------------------------
 # Full access for cluster management and administrative tasks
 # In production, disable or restrict this user and use specific service accounts
-user default on >${REDIS_REQUIREPASS:-changeme} allkeys allchannels allcommands ~* &* +@all
+user default on >${REDIS_REQUIREPASS} allkeys allchannels allcommands ~* &* +@all
 
 # ------------------------------------------------------------------------------
 # APPLICATION USER (Read/Write Access)
 # ------------------------------------------------------------------------------
 # Limited permissions for application workloads
 # Can read/write data but cannot execute dangerous commands
-user ${REDIS_ACL_USER:-app_user} on >${REDIS_ACL_PASS:-app_password} \
+user ${REDIS_ACL_USER} on >${REDIS_ACL_PASS} \
   ~* \
   &* \
   +@all \
@@ -44,7 +44,7 @@ user ${REDIS_ACL_USER:-app_user} on >${REDIS_ACL_PASS:-app_password} \
 # READ-ONLY USER (Query Access)
 # ------------------------------------------------------------------------------
 # Read-only access for reporting and analytics workloads
-user ${REDIS_READONLY_USER:-readonly_user} on >${REDIS_READONLY_PASS:-readonly_password} \
+user ${REDIS_READONLY_USER} on >${REDIS_READONLY_PASS} \
   ~* \
   +@read \
   +@connection \
@@ -60,7 +60,7 @@ user ${REDIS_READONLY_USER:-readonly_user} on >${REDIS_READONLY_PASS:-readonly_p
 # MONITORING USER (Metrics Collection)
 # ------------------------------------------------------------------------------
 # Minimal permissions for Prometheus redis_exporter
-user ${REDIS_MONITOR_USER:-monitor_user} on >${REDIS_MONITOR_PASS:-monitor_password} \
+user ${REDIS_MONITOR_USER} on >${REDIS_MONITOR_PASS} \
   ~* \
   +PING \
   +INFO \
@@ -79,7 +79,7 @@ user ${REDIS_MONITOR_USER:-monitor_user} on >${REDIS_MONITOR_PASS:-monitor_passw
 # REPLICATION USER (Sentinel and Replica Access)
 # ------------------------------------------------------------------------------
 # Permissions for Sentinel and replica synchronization
-user ${REDIS_REPLICATION_USER:-replication_user} on >${REDIS_REPLICATION_PASS:-replication_password} \
+user ${REDIS_REPLICATION_USER} on >${REDIS_REPLICATION_PASS} \
   ~* \
   +PSYNC \
   +REPLCONF \

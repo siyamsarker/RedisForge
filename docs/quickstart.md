@@ -2,7 +2,7 @@
 
 **📖 Complete step-by-step production deployment guide for AWS EC2**
 
-> 👈 **Back to**: [Main README](../README.md) | **Related**: [Monitoring Troubleshooting](./monitoring-troubleshooting.md) | [Discord Alerts](./discord-alerts-setup.md)
+> 👈 **Back to**: [Main README](../README.md)
 
 Get RedisForge running in production on AWS EC2 in under 30 minutes.
 
@@ -297,141 +297,70 @@ curl http://localhost:9100/metrics | grep node_cpu
 
 ---
 
-## Step 9: Configure Push-Based Monitoring
+## Step 9: Configure Monitoring
 
-RedisForge uses **PUSH-based monitoring** with Prometheus Push Gateway.
+RedisForge now uses **Prometheus pull-based monitoring** (no Push Gateway required).
 
 ### Architecture
 ```
-Exporters → push-metrics.sh (every 30s) → Push Gateway → Prometheus → Grafana
+Prometheus (scrape) ─▶ redis_exporter/node_exporter ─▶ Grafana
 ```
 
 ### Configuration
 
-**On each Redis instance**, configure Push Gateway URL:
+1. Ensure exporters are running on every Redis node:
+   ```bash
+   ./scripts/setup-exporters.sh
+   ```
 
-```bash
-# Edit .env
-echo "PROMETHEUS_PUSHGATEWAY=http://your-pushgateway:9091" >> .env
-echo "METRICS_PUSH_INTERVAL=30" >> .env  # Push every 30 seconds
-```
+2. Add scrape jobs to your Prometheus configuration (`prometheus.yml`):
+   ```yaml
+   scrape_configs:
+     - job_name: 'redisforge-redis'
+       static_configs:
+         - targets:
+             - '10.0.1.10:9121'
+             - '10.0.2.11:9121'
+             - '10.0.3.12:9121'
 
-### Setup Continuous Push Service
+     - job_name: 'redisforge-node'
+       static_configs:
+         - targets:
+             - '10.0.1.10:9100'
+             - '10.0.2.11:9100'
+             - '10.0.3.12:9100'
 
-**Option A: Using systemd (Recommended for Production)**
+     - job_name: 'redisforge-envoy'
+       metrics_path: /stats/prometheus
+       static_configs:
+         - targets:
+             - '<envoy-host>:9901'
+   ```
 
-On **each Redis instance**:
+3. Reload Prometheus:
+   ```bash
+   curl -X POST http://your-prometheus:9090/-/reload
+   ```
 
-```bash
-# Copy systemd service file
-sudo cp monitoring/systemd/redisforge-metrics-push.service /etc/systemd/system/
+4. Verify targets and queries:
+   ```bash
+   curl http://your-prometheus:9090/api/v1/targets
+   curl 'http://your-prometheus:9090/api/v1/query?query=redis_up'
+   curl 'http://your-prometheus:9090/api/v1/query?query=node_load1'
+   ```
 
-# Update service file paths if needed
-sudo nano /etc/systemd/system/redisforge-metrics-push.service
-
-# Enable and start service
-sudo systemctl daemon-reload
-sudo systemctl enable redisforge-metrics-push
-sudo systemctl start redisforge-metrics-push
-
-# Verify service is running
-sudo systemctl status redisforge-metrics-push
-
-# View logs
-sudo journalctl -u redisforge-metrics-push -f
-```
-
-**Option B: Using Screen (Testing/Development)**
-
-```bash
-# Start in screen session
-screen -S metrics-push
-cd /home/ec2-user/RedisForge
-./scripts/push-metrics.sh
-
-# Detach with Ctrl+A, then D
-
-# Re-attach later
-screen -r metrics-push
-```
-
-**Option C: Using nohup (Background Process)**
-
-```bash
-nohup ./scripts/push-metrics.sh > /var/log/metrics-push.log 2>&1 &
-```
-
-### Configure Prometheus to Scrape Push Gateway
-
-In your **Prometheus server** configuration (`prometheus.yml`):
-
-```yaml
-scrape_configs:
-  - job_name: 'pushgateway'
-    honor_labels: true  # Preserve labels from pushed metrics
-    static_configs:
-    - targets: ['<pushgateway-host>:9091']
-      labels:
-        cluster: 'redisforge'
-```
-
-**Note**: Replace `<pushgateway-host>` with your Push Gateway server IP/hostname.
-
-Reload Prometheus:
-```bash
-curl -X POST http://your-prometheus:9090/-/reload
-```
-
-Verify targets in Prometheus UI:
-```
-http://your-prometheus:9090/targets
-```
-
-### Verify Push Metrics
-
-Check Push Gateway has received metrics:
-```bash
-curl http://<pushgateway-host>:9091/metrics | grep redisforge
-```
-
-Query metrics in Prometheus:
-```bash
-curl 'http://your-prometheus:9090/api/v1/query?query=redis_up'
-```
-
-### Important Notes
-
-**Data Flow:**
-1. **Exporters** (redis_exporter, node_exporter) expose current metrics at `:9121` and `:9100`
-2. **push-metrics.sh** reads exporters every 30 seconds (configurable) and pushes to Push Gateway
-3. **Push Gateway** stores metrics in memory until Prometheus scrapes
-4. **Prometheus** scrapes Push Gateway and stores in time-series DB
-5. **Grafana** queries Prometheus for visualization
-
-**Data Storage:**
-- ❌ Exporters **DO NOT** store historical data locally (only current state)
-- ✅ Push Gateway stores latest metrics in memory (lost on restart)
-- ✅ Prometheus stores all historical data on disk
-
-**Push Interval:**
-- Default: **30 seconds** (configurable via `METRICS_PUSH_INTERVAL`)
-- Adjust based on your monitoring needs (higher frequency = more data)
-
-**Troubleshooting:**
+### Troubleshooting
 ```bash
 # Check exporters are running
 docker ps | grep exporter
 
-# Test exporter endpoints
+# Test exporter endpoints locally
 curl http://localhost:9121/metrics | grep redis_up
 curl http://localhost:9100/metrics | grep node_cpu
 
-# Check systemd service status
-sudo systemctl status redisforge-metrics-push
-sudo journalctl -u redisforge-metrics-push --since "10 minutes ago"
-
-# Manual test push
-./scripts/push-metrics.sh
+# Validate Prometheus reachability from Prom server
+curl http://10.0.1.10:9121/metrics
+curl http://10.0.1.10:9100/metrics
 ```
 
 ---
@@ -666,9 +595,13 @@ curl http://localhost:9100/metrics
 ./scripts/deploy.sh redis
 ./scripts/setup-exporters.sh
 
-# Add to cluster
+# Add a new MASTER (slots rebalanced automatically)
 REDIS_REQUIREPASS=your_password SEED=10.0.1.10:6379 \
-./scripts/scale.sh add 10.0.4.13:6379
+./scripts/scale.sh add 10.0.4.13:6379 --role master
+
+# Or add a REPLICA for an existing master
+REDIS_REQUIREPASS=your_password SEED=10.0.1.10:6379 \
+./scripts/scale.sh add 10.0.5.22:6379 --role replica --replica-of <master-node-id>
 ```
 
 ### Remove a Redis Node
@@ -765,18 +698,16 @@ echo never > /sys/kernel/mm/transparent_hugepage/enabled
 
 After completing this deployment:
 
-1. **Configure Monitoring** → Continue to [Monitoring Setup](../README.md#monitoring-setup) in main README
-2. **Set Up Alerts** → Follow [Discord Alerts Setup Guide](./discord-alerts-setup.md)
-3. **Troubleshoot Issues** → See [Monitoring Troubleshooting Guide](./monitoring-troubleshooting.md)
-4. **Scale Your Cluster** → See [Operations Guide](../README.md#operations) in main README
+1. **Configure Monitoring** → Continue to [Monitoring Setup](../README.md#-monitoring-setup) in the main README.
+2. **Set Up Alerts** → Wire Alertmanager or your preferred notification system to Prometheus.
+3. **Troubleshoot Issues** → Use the [Troubleshooting](../README.md#-troubleshooting) section in the main README.
+4. **Scale Your Cluster** → See [Operations Guide](../README.md#operations) in the main README.
 
 ---
 
 ## 📞 Support
 
 - **Main Documentation**: [README.md](../README.md)
-- **Monitoring Issues**: [monitoring-troubleshooting.md](./monitoring-troubleshooting.md)
-- **Discord Setup**: [discord-alerts-setup.md](./discord-alerts-setup.md)
 - **Report Issues**: [GitHub Issues](https://github.com/siyamsarker/RedisForge/issues)
 
 ---

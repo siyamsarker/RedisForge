@@ -10,8 +10,9 @@ set -euo pipefail
 usage() {
   cat << EOF
 Usage:
-  Add node:    $0 add <host:port> [SEED=<seed_host:port>]
-  Remove node: $0 remove <node_id> [SEED=<seed_host:port>]
+  Add master:  $0 add <host:port> [--role master] [SEED=<seed_host:port>]
+  Add replica: $0 add <host:port> --role replica --replica-of <master_node_id>
+  Remove:      $0 remove <node_id> [SEED=<seed_host:port>]
 
 Environment Variables:
   REDIS_REQUIREPASS - Redis authentication password
@@ -20,9 +21,10 @@ Environment Variables:
   CLUSTER_NODES     - Comma-separated list of cluster nodes
 
 Examples:
-  $0 add 10.0.1.15:6379
+  $0 add 10.0.1.15:6379 --role master
+  $0 add 10.0.1.16:6379 --role replica --replica-of e1f2a3...
   $0 remove a1b2c3d4e5f6g7h8
-  SEED=10.0.1.10:6379 $0 add 10.0.1.15:6379
+  SEED=10.0.1.10:6379 $0 add 10.0.1.17:6379 --role master
 EOF
 }
 
@@ -44,11 +46,66 @@ fi
 
 # Parse arguments
 ACTION=${1:-}
-ARG=${2:-}
+shift || true
 
-if [[ -z "$ACTION" ]] || [[ -z "$ARG" ]]; then
+if [[ -z "$ACTION" ]]; then
   usage
   exit 1
+fi
+
+ROLE="master"
+REPLICA_OF=""
+TARGET=""
+
+case "$ACTION" in
+  add)
+    TARGET=${1:-}
+    if [[ -z "$TARGET" ]]; then
+      usage
+      exit 1
+    fi
+    shift || true
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --role)
+          ROLE="${2:-}"
+          shift 2 || { usage; exit 1; }
+          ;;
+        --replica-of)
+          REPLICA_OF="${2:-}"
+          shift 2 || { usage; exit 1; }
+          ;;
+        *)
+          error "Unknown option: $1"
+          usage
+          exit 1
+          ;;
+      esac
+    done
+    ;;
+  remove)
+    TARGET=${1:-}
+    if [[ -z "$TARGET" ]]; then
+      usage
+      exit 1
+    fi
+    ;;
+  *)
+    error "Unknown action: $ACTION"
+    usage
+    exit 1
+    ;;
+esac
+
+if [[ "$ACTION" == "add" ]]; then
+  if [[ "$ROLE" != "master" && "$ROLE" != "replica" ]]; then
+    error "Invalid role: $ROLE (expected master or replica)"
+    exit 1
+  fi
+  if [[ "$ROLE" == "replica" && -z "$REPLICA_OF" ]]; then
+    error "Replica addition requires --replica-of <master_node_id>"
+    exit 1
+  fi
 fi
 
 # Build auth arguments
@@ -97,7 +154,7 @@ log "Seed node is online"
 # Handle actions
 case "$ACTION" in
   add)
-    NEW_NODE="$ARG"
+    NEW_NODE="$TARGET"
     NEW_HOST=${NEW_NODE%:*}
     NEW_PORT=${NEW_NODE#*:}
     
@@ -107,7 +164,7 @@ case "$ACTION" in
       exit 1
     fi
     
-    log "Adding new node: $NEW_NODE"
+    log "Adding new $ROLE node: $NEW_NODE"
     
     # Check if new node is reachable
     if ! timeout 5 bash -c ">/dev/tcp/$NEW_HOST/$NEW_PORT" 2>/dev/null; then
@@ -123,28 +180,38 @@ case "$ACTION" in
     
     log "New node is online and ready"
     
-    # Add node as replica
-    log "Adding node as replica..."
-    if ! redis-cli "${AUTH_ARGS[@]}" --cluster add-node "$NEW_NODE" "$SEED" --cluster-slave; then
-      error "Failed to add node $NEW_NODE"
-      exit 1
-    fi
-    
-    log "✓ Node added as replica"
-    
-    # Rebalance cluster
-    log "Rebalancing cluster to distribute slots..."
-    if ! redis-cli "${AUTH_ARGS[@]}" --cluster rebalance "$SEED" --cluster-threshold 1.05 --cluster-yes; then
-      warn "Rebalancing failed or not needed"
+    if [[ "$ROLE" == "master" ]]; then
+      log "Adding node as master..."
+      if ! redis-cli "${AUTH_ARGS[@]}" --cluster add-node "$NEW_NODE" "$SEED"; then
+        error "Failed to add node $NEW_NODE as master"
+        exit 1
+      fi
+      
+      log "✓ Node added as master"
+      log "Rebalancing cluster to distribute slots..."
+      if ! redis-cli "${AUTH_ARGS[@]}" --cluster rebalance "$SEED" --cluster-threshold 1.05 --cluster-yes; then
+        warn "Rebalancing failed or not needed"
+      else
+        log "✓ Cluster rebalanced"
+      fi
     else
-      log "✓ Cluster rebalanced"
+      log "Adding node as replica of $REPLICA_OF..."
+      if ! [[ "$REPLICA_OF" =~ ^[a-f0-9]{40}$ ]]; then
+        error "Invalid master node ID for replica: $REPLICA_OF"
+        exit 1
+      fi
+      if ! redis-cli "${AUTH_ARGS[@]}" --cluster add-node "$NEW_NODE" "$SEED" --cluster-slave --cluster-master-id "$REPLICA_OF"; then
+        error "Failed to add node $NEW_NODE as replica"
+        exit 1
+      fi
+      log "✓ Node added as replica"
     fi
     
     log "✓ Node $NEW_NODE successfully added to cluster"
     ;;
     
   remove)
-    NODE_ID="$ARG"
+    NODE_ID="$TARGET"
     
     # Validate node ID format (40-character hex string)
     if ! [[ "$NODE_ID" =~ ^[a-f0-9]{40}$ ]]; then
@@ -187,11 +254,6 @@ case "$ACTION" in
     log "✓ Node $NODE_ID successfully removed from cluster"
     ;;
     
-  *)
-    error "Unknown action: $ACTION"
-    usage
-    exit 1
-    ;;
 esac
 
 # Verify cluster health

@@ -11,7 +11,7 @@ Complete automation for cluster lifecycle, scaling, monitoring, and backups.
 [![Redis](https://img.shields.io/badge/Redis-8.2-red.svg)](https://redis.io/)
 [![Envoy](https://img.shields.io/badge/Envoy-v1.32-blue.svg)](https://www.envoyproxy.io/)
 [![Docker](https://img.shields.io/badge/Docker-20.10+-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Prometheus](https://img.shields.io/badge/Prometheus-Push%20Gateway-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Pull%20Scrape-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800.svg?logo=grafana&logoColor=white)](https://grafana.com/)
 [![AWS](https://img.shields.io/badge/AWS-EC2-FF9900.svg?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/ec2/)
 [![Bash](https://img.shields.io/badge/Bash-Automation-4EAA25.svg?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
@@ -77,7 +77,7 @@ RedisForge is a production-ready Redis 8.2 OSS cluster deployment with:
 - **Single Endpoint**: Envoy proxy handles routing, sharding, and failover transparently
 - **High Availability**: Multi-AZ masters with replicas and automatic failover
 - **Durable**: AOF persistence with `appendfsync everysec`
-- **Observable**: Push-based monitoring with Prometheus and Grafana
+- **Observable**: Native Prometheus pull monitoring with Grafana dashboards
 - **Automated**: Complete lifecycle management with idempotent Bash scripts
 
 Perfect for applications requiring millions of requests per minute with zero downtime.
@@ -92,7 +92,7 @@ Perfect for applications requiring millions of requests per minute with zero dow
 | **Envoy redis_proxy** | Intelligent routing, retries, health checks, circuit breakers |
 | **AOF Persistence** | Data durability with `everysec` fsync strategy |
 | **Multi-AZ HA** | Automatic failover across availability zones |
-| **Push-Based Monitoring** | Metrics pushed to Prometheus Push Gateway every 30s |
+| **Prometheus Scrape Monitoring** | Prometheus scrapes node/redis exporters directly |
 | **Automation Scripts** | Deploy, scale, backup, rotate logs - all automated |
 | **No TLS Overhead** | Optimized for performance (TLS removed for speed) |
 | **Docker-Based** | Easy deployment, consistent environments |
@@ -135,10 +135,8 @@ graph TB
     
     subgraph "Monitoring Layer"
         Exporters[📊 Exporters<br/>redis_exporter + node_exporter]
-        PushGW[⬆️ Push Gateway<br/>Metrics Buffer]
-        Prom[📈 Prometheus<br/>Time-Series DB]
+        Prom[📈 Prometheus<br/>Scrapes Exporters]
         Grafana[📉 Grafana<br/>Dashboards]
-        Discord[💬 Discord<br/>Alerts]
     end
     
     Apps -->|Redis Protocol<br/>Port 6379| Envoy
@@ -155,10 +153,8 @@ graph TB
     M3 --> Exporters
     Envoy --> Exporters
     
-    Exporters -->|Push every 30s| PushGW
-    PushGW -->|Scrape| Prom
+    Prom -->|Scrape| Exporters
     Prom --> Grafana
-    Prom --> Discord
     
     classDef apps fill:#e1f5ff,stroke:#01579b,stroke-width:2px
     classDef proxy fill:#fff3e0,stroke:#e65100,stroke-width:3px
@@ -170,7 +166,7 @@ graph TB
     class Envoy proxy
     class M1,M2,M3 master
     class R1,R2,R3 replica
-    class Exporters,PushGW,Prom,Grafana,Discord monitor
+    class Exporters,Prom,Grafana monitor
 ```
 
 </div>
@@ -190,7 +186,7 @@ graph TB
 2. **Smart Routing** → Envoy hashes key and routes to correct Redis master
 3. **Cluster Execution** → Redis master executes command and replicates to replica
 4. **Response** → Result returns through Envoy to application
-5. **Monitoring** → Exporters push metrics every 30s to Push Gateway → Prometheus
+5. **Monitoring** → Prometheus scrapes exporters every 15s and powers Grafana
 
 ### 🛡️ High Availability
 
@@ -203,16 +199,16 @@ graph TB
 ### 📊 Monitoring Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────┐
-│  Exporters  │────▶│ Push Gateway │────▶│ Prometheus  │────▶│ Grafana  │
-│  (9121/9100)│ 30s │   (Buffer)   │ 15s │  (Storage)  │     │ (Viz)    │
-└─────────────┘     └──────────────┘     └─────────────┘     └──────────┘
-                                                  │
-                                                  ▼
-                                          ┌──────────────┐
-                                          │   Discord    │
-                                          │   Alerts     │
-                                          └──────────────┘
+┌─────────────┐   scrape   ┌──────────────┐
+│ Prometheus  │──────────▶ │ Exporters    │
+│  (Storage)  │            │ (redis/node) │
+└─────────────┘            └──────────────┘
+        │
+        ▼
+┌─────────────┐
+│   Grafana   │
+│   Dashboards│
+└─────────────┘
 ```
 
 **Key Metrics Tracked:**
@@ -254,12 +250,11 @@ graph TB
 
 ### Monitoring
 
-- ✅ **Push-Based Architecture** (no pull scraping needed)
+- ✅ **Prometheus Pull Architecture** (native scraping)
 - ✅ **redis_exporter** for Redis metrics
 - ✅ **node_exporter** for system metrics
-- ✅ **Prometheus Push Gateway** integration
+- ✅ **Envoy Metrics** via admin `/stats/prometheus`
 - ✅ **Pre-built Grafana Dashboard**
-- ✅ **Discord Alerts** for Push Gateway issues
 
 ---
 
@@ -278,9 +273,9 @@ graph TB
 
 ### Monitoring (User-Provided)
 
-- **Prometheus** instance for metrics collection
-- **Prometheus Push Gateway** for push-based metrics
+- **Prometheus** instance for metrics collection (scrape exporters directly)
 - **Grafana** instance for dashboards
+- **Alertmanager** (optional) for notifications
 
 ### Networking
 
@@ -345,8 +340,11 @@ echo "REDIS_REQUIREPASS=$REDIS_PASS" >> .env
 # Edit .env and set:
 # - REDIS_REQUIREPASS (use generated password)
 # - REDIS_MAXMEMORY (e.g., 48gb for 64GB instance)
-# - PROMETHEUS_PUSHGATEWAY (your Push Gateway URL)
-# - METRICS_PUSH_INTERVAL (default: 30 seconds)
+# - All ACL passwords (app/read-only/monitor/replication)
+# - Any overrides for exporter ports if you deviate from defaults
+
+# Docker entrypoints refuse to start if any secret remains `CHANGE_ME`,
+# so update every password before continuing.
 ```
 
 ### 5. Deploy Redis on Each Redis Instance
@@ -402,12 +400,12 @@ redis-cli -h <envoy-ip> -p 6379 -a your_password GET test
 
 ## 📊 Monitoring Setup
 
-RedisForge uses **push-based monitoring** with Prometheus Push Gateway.
+RedisForge now uses a **pure Prometheus pull model**: exporters expose metrics locally and Prometheus scrapes them over the network.
 
 ### Architecture
 
 ```
-Exporters → push-metrics.sh (every 30s) → Push Gateway → Prometheus → Grafana
+Prometheus (scrape) ─▶ redis_exporter / node_exporter ─▶ Grafana dashboards
 ```
 
 ### Step 1: Deploy Monitoring Exporters
@@ -418,55 +416,37 @@ On each Redis instance:
 ./scripts/setup-exporters.sh
 ```
 
-This deploys:
+This deploys (using host networking so exporters read the local Redis instance directly):
 - `redis_exporter` on port 9121
 - `node_exporter` on port 9100
 
-### Step 2: Configure Push Gateway
+### Step 2: Configure Prometheus to Scrape Exporters
 
-Edit `.env` on all Redis instances:
-
-```bash
-PROMETHEUS_PUSHGATEWAY=http://your-pushgateway:9091
-METRICS_PUSH_INTERVAL=30  # Push every 30 seconds
-```
-
-### Step 3: Enable Continuous Push Service
-
-**Option A: Using systemd (Production)**
-
-```bash
-# Copy service file
-sudo cp monitoring/systemd/redisforge-metrics-push.service /etc/systemd/system/
-
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable redisforge-metrics-push
-sudo systemctl start redisforge-metrics-push
-
-# Verify
-sudo systemctl status redisforge-metrics-push
-sudo journalctl -u redisforge-metrics-push -f
-```
-
-**Option B: Using screen (Testing)**
-
-```bash
-screen -S metrics-push
-./scripts/push-metrics.sh
-# Detach with Ctrl+A, D
-```
-
-### Step 4: Configure Prometheus
-
-Add to your Prometheus configuration:
+Add jobs similar to the following to your Prometheus configuration (replace hostnames with your instance IPs or DNS names):
 
 ```yaml
 scrape_configs:
-  - job_name: 'pushgateway'
-    honor_labels: true  # Preserve labels from pushed metrics
+  - job_name: 'redisforge-redis'
     static_configs:
-    - targets: ['<pushgateway-host>:9091']
+      - targets:
+          - '10.0.1.10:9121'
+          - '10.0.2.11:9121'
+        labels:
+          role: redis
+
+  - job_name: 'redisforge-node'
+    static_configs:
+      - targets:
+          - '10.0.1.10:9100'
+          - '10.0.2.11:9100'
+        labels:
+          role: system
+
+  - job_name: 'redisforge-envoy'
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets:
+          - '<envoy-host>:9901'
 ```
 
 Reload Prometheus:
@@ -475,41 +455,12 @@ Reload Prometheus:
 curl -X POST http://localhost:9090/-/reload
 ```
 
-### Step 5: Import Grafana Dashboard
+### Step 3: Import Grafana Dashboard
 
 1. Open Grafana → Dashboards → Import
 2. Upload `monitoring/grafana/dashboards/redisforge-dashboard.json`
 3. Select your Prometheus datasource
 4. Save
-
-### Step 6: Configure Discord Alerts
-
-See [`DISCORD-ALERTS-SETUP.md`](./DISCORD-ALERTS-SETUP.md) for complete setup guide.
-
-**Quick setup:**
-
-```bash
-### Discord Webhook Integration
-
-Set up real-time Discord notifications for Push Gateway alerts.
-
-See [`discord-alerts-setup.md`](./docs/discord-alerts-setup.md) for complete setup guide.
-
-```bash
-# 1. Get Discord webhook URL from your server
-# 2. Update alertmanager.yaml
-DISCORD_WEBHOOK="https://discord.com/api/webhooks/..." 
-sed -i "s|<YOUR_DISCORD_WEBHOOK_URL>|${DISCORD_WEBHOOK}|g" monitoring/alertmanager/alertmanager.yaml
-
-# 3. Deploy Alertmanager
-docker run -d \
-  --name alertmanager \
-  --restart=always \
-  -p 9093:9093 \
-  -v $(pwd)/monitoring/alertmanager:/etc/alertmanager \
-  prom/alertmanager:latest \
-  --config.file=/etc/alertmanager/alertmanager.yaml
-```
 
 ---
 
@@ -523,15 +474,20 @@ Add a new Redis node:
 # 1. Deploy Redis on new instance
 ./scripts/deploy.sh redis
 
-# 2. Add to cluster (automatically validates and rebalances)
+# 2a. Add a NEW MASTER and rebalance slots automatically
 REDIS_REQUIREPASS=your_password \
 SEED=10.0.1.10:6379 \
-./scripts/scale.sh add 10.0.4.20:6379
+./scripts/scale.sh add 10.0.4.20:6379 --role master
+
+# 2b. Add a REPLICA for an existing master (replace <master-id>)
+REDIS_REQUIREPASS=your_password \
+SEED=10.0.1.10:6379 \
+./scripts/scale.sh add 10.0.5.30:6379 --role replica --replica-of <master-id>
 ```
 
 **Features:**
 - Node connectivity validation
-- Automatic rebalancing
+- Automatic rebalancing for new masters
 - Cluster health verification
 
 ### Scaling Down
@@ -657,30 +613,9 @@ docker logs envoy-proxy
 curl http://<envoy-ip>:9901/clusters | grep health_flags
 ```
 
-#### 4. Push Gateway Failures
-
-**Impact:** ✅ Redis and Envoy continue operating normally (monitoring is decoupled)
-
-**Check:**
-
-```bash
-# 1. Verify exporters are running
-docker ps | grep exporter
-
-# 2. Check push service
-sudo systemctl status redisforge-metrics-push
-
-# 3. Test Push Gateway connectivity
-curl http://<pushgateway>:9091/-/healthy
-
-# 4. View push logs
-sudo journalctl -u redisforge-metrics-push -n 50
-```
 
 ### Detailed Troubleshooting Guides
 
-- **Monitoring Issues**: See [`monitoring-troubleshooting.md`](./docs/monitoring-troubleshooting.md)
-- **Discord Alerts**: See [`discord-alerts-setup.md`](./docs/discord-alerts-setup.md)
 - **Production Deployment**: See [`quickstart.md`](./docs/quickstart.md)
 
 ---
@@ -733,15 +668,12 @@ RedisForge/
 │   └── redis/Dockerfile            # Redis 8.2 image
 ├── monitoring/
 │   ├── alertmanager/
-│   │   ├── alertmanager.yaml        # Discord webhook config
-│   │   └── push-gateway-alerts.yaml # Push Gateway alert rules
+│   │   └── alertmanager.yaml        # Example webhook config
 │   ├── grafana/
 │   │   └── dashboards/
 │   │       └── redisforge-dashboard.json
-│   ├── prometheus/
-│   │   └── prometheus.yaml          # Push Gateway scrape config
-│   └── systemd/
-│       └── redisforge-metrics-push.service
+│   └── prometheus/
+│       └── prometheus.yaml          # Prometheus scrape config reference
 ├── scripts/
 │   ├── deploy.sh                   # Deploy Redis/Envoy/Exporters
 │   ├── init-cluster.sh             # Initialize Redis cluster
@@ -749,13 +681,10 @@ RedisForge/
 │   ├── backup.sh                   # Backup AOF to S3
 │   ├── log-rotate.sh               # Rotate Redis logs
 │   ├── setup-exporters.sh          # Deploy monitoring exporters
-│   ├── push-metrics.sh             # Push metrics to Push Gateway
 │   └── test-cluster.sh             # Integration smoke tests
 ├── docs/
-│   ├── quickstart.md                  # Production deployment guide
-│   ├── ubuntu-24.04-setup.md          # Ubuntu 24.04 LTS setup guide
-│   ├── monitoring-troubleshooting.md  # Monitoring troubleshooting
-│   └── discord-alerts-setup.md        # Discord integration guide
+│   ├── quickstart.md               # Production deployment guide
+│   └── ubuntu-24.04-setup.md       # Ubuntu 24.04 LTS setup guide
 ├── env.example                     # Environment configuration template
 ├── LICENSE                         # MIT License
 └── README.md                       # This file
@@ -829,17 +758,14 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 |-------|-------------|----------|
 | **[📖 Quick Start Guide](./docs/quickstart.md)** | Complete step-by-step production deployment on AWS EC2 | Setting up RedisForge for the first time |
 | **[🐧 Ubuntu 24.04 Setup Guide](./docs/ubuntu-24.04-setup.md)** | Complete deployment guide specifically for Ubuntu 24.04 LTS | Deploying on Ubuntu 24.04 LTS (Noble Numbat) |
-| **[ Monitoring Troubleshooting](./docs/monitoring-troubleshooting.md)** | Comprehensive monitoring troubleshooting and debugging | Experiencing monitoring or metrics issues |
-| **[💬 Discord Alerts Setup](./docs/discord-alerts-setup.md)** | Configure Discord webhook notifications for alerts | Setting up Discord notifications |
 
 ### Quick Links by Task
 
 **I want to...**
 
-- 🚀 **Deploy to production** → See [Quick Start Guide](./QUICKSTART.md)
-- 📊 **Set up monitoring** → See [Monitoring Setup](#monitoring-setup) above
-- 🔔 **Get Discord alerts** → See [Discord Alerts Setup](./DISCORD-ALERTS-SETUP.md)
-- 🐛 **Fix monitoring issues** → See [Monitoring Troubleshooting](./MONITORING-TROUBLESHOOTING.md)
+- 🚀 **Deploy to production** → See [Quick Start Guide](./docs/quickstart.md)
+- 📊 **Set up monitoring** → See [Monitoring Setup](#-monitoring-setup) above
+- 🧱 **Provision Ubuntu hosts** → See [Ubuntu 24.04 Guide](./docs/ubuntu-24.04-setup.md)
 - 📈 **Scale the cluster** → See [Operations](#operations) above
 - 💾 **Configure backups** → See [Operations](#operations) above
 - 🔍 **Debug cluster issues** → See [Troubleshooting](#troubleshooting) above

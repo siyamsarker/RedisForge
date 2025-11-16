@@ -17,17 +17,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools \
     dnsutils \
     iputils-ping \
+    gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /etc/envoy /var/log/envoy /var/run/envoy /etc/envoy/certs \
+RUN mkdir -p /etc/envoy /etc/envoy/templates /var/log/envoy /var/run/envoy /etc/envoy/certs \
     && chmod 755 /etc/envoy /var/log/envoy /var/run/envoy
 
-# Copy Envoy configuration
-COPY config/envoy/envoy.yaml /etc/envoy/envoy.yaml
+# Copy Envoy configuration template
+COPY config/envoy/envoy.yaml /etc/envoy/templates/envoy.yaml
+RUN chmod 644 /etc/envoy/templates/envoy.yaml
 
-# Set proper permissions
-RUN chmod 644 /etc/envoy/envoy.yaml
+# Copy entrypoint
+COPY docker/envoy/entrypoint.sh /usr/local/bin/redisforge-envoy-entrypoint.sh
+RUN chmod +x /usr/local/bin/redisforge-envoy-entrypoint.sh
 
 # Create health check script for container orchestration
 RUN echo '#!/bin/bash' > /usr/local/bin/healthcheck.sh && \
@@ -43,9 +46,6 @@ EXPOSE 6379 9901 9902
 # Set working directory
 WORKDIR /etc/envoy
 
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-
 # Health check
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
     CMD /usr/local/bin/healthcheck.sh
@@ -55,6 +55,9 @@ CMD ["envoy", "-c", "/etc/envoy/envoy.yaml", "--service-cluster", "redis-cluster
 
 # Security: Run as envoy user (created in base image)
 USER envoy
+
+# Entrypoint performs templating then execs Envoy
+ENTRYPOINT ["/usr/local/bin/redisforge-envoy-entrypoint.sh"]
 
 # Volume for TLS certificates (mounted at runtime)
 VOLUME ["/etc/envoy/certs"]

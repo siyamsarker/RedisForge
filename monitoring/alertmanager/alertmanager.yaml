@@ -1,79 +1,51 @@
 # ================================================================================
-# Alertmanager Configuration for RedisForge
+# Alertmanager Configuration for RedisForge (Discord Webhook Example)
 # ================================================================================
-# This configuration sends Push Gateway alerts to Discord via webhook
-#
-# SETUP:
-# 1. Create Discord webhook:
-#    - Open Discord Server Settings → Integrations → Webhooks
-#    - Click "New Webhook"
-#    - Copy webhook URL
-# 2. Replace <YOUR_DISCORD_WEBHOOK_URL> below with your actual webhook URL
-# 3. Deploy Alertmanager with this config
-# 4. Test: curl -X POST http://alertmanager:9093/-/reload
-#
-# ================================================================================
+# Replace <YOUR_DISCORD_WEBHOOK_URL> with your actual Discord webhook URL.
+# Deploy Alertmanager with this file and test using:
+# curl -X POST http://alertmanager:9093/-/reload
 
 global:
   resolve_timeout: 5m
   # Discord webhook URL format:
   # discord_webhook_url: 'https://discord.com/api/webhooks/<id>/<token>'
 
-# Route configuration
 route:
-  # Default receiver for all alerts
   receiver: 'discord-default'
-  
-  # Group alerts by these labels
   group_by: ['alertname', 'cluster', 'service']
-  
-  # Wait time before sending first notification
   group_wait: 10s
-  
-  # Wait time before sending notification about new alerts in the same group
   group_interval: 10s
-  
-  # Wait time before sending notification about resolved alerts
   repeat_interval: 12h
 
-  # Route Push Gateway alerts to Discord
   routes:
-    # Push Gateway specific alerts → Discord
-    - match:
-        component: monitoring
-      receiver: 'discord-pushgateway'
-      group_wait: 5s
-      group_interval: 5s
-      repeat_interval: 4h
-      continue: false
-
-    # Critical alerts → Discord with high priority
     - match:
         severity: critical
       receiver: 'discord-critical'
       group_wait: 5s
       repeat_interval: 1h
       continue: true
+    - match:
+        severity: warning
+      receiver: 'discord-warning'
+      group_wait: 10s
+      repeat_interval: 2h
+      continue: true
 
 # Receivers configuration
 receivers:
-  # Discord receiver for Push Gateway alerts
-  - name: 'discord-pushgateway'
-    webhook_configs:
-      - url: '<YOUR_DISCORD_WEBHOOK_URL>/slack'  # Discord supports Slack-compatible webhooks
-        send_resolved: true
-        http_config:
-          follow_redirects: true
-
-  # Discord receiver for critical alerts
   - name: 'discord-critical'
     webhook_configs:
       - url: '<YOUR_DISCORD_WEBHOOK_URL>/slack'
         send_resolved: true
         http_config:
           follow_redirects: true
+  - name: 'discord-warning'
+    webhook_configs:
+      - url: '<YOUR_DISCORD_WEBHOOK_URL>/slack'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
 
-  # Default Discord receiver for other alerts
   - name: 'discord-default'
     webhook_configs:
       - url: '<YOUR_DISCORD_WEBHOOK_URL>/slack'
@@ -81,21 +53,8 @@ receivers:
         http_config:
           follow_redirects: true
 
-# Inhibition rules - prevent notification spam
-inhibit_rules:
-  # If Push Gateway is down, don't alert on delayed metrics
-  - source_match:
-      alertname: 'PushGatewayDown'
-    target_match:
-      alertname: 'MetricsPushDelayed'
-    equal: ['cluster']
-
-  # If metrics push service is down, don't alert on delayed metrics
-  - source_match:
-      alertname: 'MetricsPushServiceDown'
-    target_match:
-      alertname: 'MetricsPushDelayed'
-    equal: ['instance']
+# Inhibition rules (optional)
+inhibit_rules: []
 
 # ================================================================================
 # DISCORD WEBHOOK SETUP GUIDE

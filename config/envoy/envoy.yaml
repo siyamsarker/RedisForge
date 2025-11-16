@@ -15,7 +15,7 @@ admin:
   address:
     socket_address:
       address: 0.0.0.0
-      port_value: ${ENVOY_ADMIN_PORT:-9901}
+      port_value: ${ENVOY_ADMIN_PORT}
 
 # ------------------------------------------------------------------------------
 # LAYERED RUNTIME (for dynamic configuration)
@@ -40,7 +40,7 @@ static_resources:
     address:
       socket_address:
         address: 0.0.0.0
-        port_value: ${ENVOY_LISTENER_PORT:-6379}
+        port_value: ${ENVOY_LISTENER_PORT}
     per_connection_buffer_limit_bytes: 1048576
     filter_chains:
     - filters:
@@ -66,7 +66,7 @@ static_resources:
               cluster: redis_cluster
           latency_in_micros: true
           downstream_auth_username:
-            inline_string: "${REDIS_ACL_USER:-default}"
+            inline_string: "${REDIS_ACL_USER}"
 
   # ----------------------------------------------------------------------------
   # CLUSTERS
@@ -86,7 +86,7 @@ static_resources:
         "@type": type.googleapis.com/envoy.extensions.clusters.redis.v3.RedisClusterConfig
         # Topology refresh every 10 seconds
         cluster_refresh_rate:
-          seconds: ${ENVOY_CLUSTER_REFRESH_SECONDS:-10}
+          seconds: ${ENVOY_CLUSTER_REFRESH_SECONDS}
         cluster_refresh_timeout:
           seconds: 5
         # Refresh on redirect responses
@@ -100,7 +100,7 @@ static_resources:
         upstream_auth_password:
           inline_string: "${REDIS_REQUIREPASS}"
         upstream_auth_username:
-          inline_string: "${REDIS_ACL_USER:-default}"
+          inline_string: "${REDIS_ACL_USER}"
     
     # Seed nodes (initial discovery points)
     load_assignment:
@@ -111,28 +111,28 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: ${REDIS_MASTER_1_HOST:-redis-master-1}
-                port_value: ${REDIS_PORT:-6379}
+                address: ${REDIS_MASTER_1_HOST}
+                port_value: ${REDIS_PORT}
             health_check_config:
-              port_value: ${REDIS_PORT:-6379}
+              port_value: ${REDIS_PORT}
           load_balancing_weight: 100
         # Redis Master 2
         - endpoint:
             address:
               socket_address:
-                address: ${REDIS_MASTER_2_HOST:-redis-master-2}
-                port_value: ${REDIS_PORT:-6379}
+                address: ${REDIS_MASTER_2_HOST}
+                port_value: ${REDIS_PORT}
             health_check_config:
-              port_value: ${REDIS_PORT:-6379}
+              port_value: ${REDIS_PORT}
           load_balancing_weight: 100
         # Redis Master 3
         - endpoint:
             address:
               socket_address:
-                address: ${REDIS_MASTER_3_HOST:-redis-master-3}
-                port_value: ${REDIS_PORT:-6379}
+                address: ${REDIS_MASTER_3_HOST}
+                port_value: ${REDIS_PORT}
             health_check_config:
-              port_value: ${REDIS_PORT:-6379}
+              port_value: ${REDIS_PORT}
           load_balancing_weight: 100
     
     # Redis protocol options
@@ -142,7 +142,7 @@ static_resources:
         auth_password:
           inline_string: "${REDIS_REQUIREPASS}"
         auth_username:
-          inline_string: "${REDIS_ACL_USER:-default}"
+          inline_string: "${REDIS_ACL_USER}"
     
     # Health checks
     health_checks:
@@ -164,10 +164,10 @@ static_resources:
     circuit_breakers:
       thresholds:
       - priority: DEFAULT
-        max_connections: ${ENVOY_MAX_CONNECTIONS:-10000}
-        max_pending_requests: ${ENVOY_MAX_PENDING_REQUESTS:-10000}
+        max_connections: ${ENVOY_MAX_CONNECTIONS}
+        max_pending_requests: ${ENVOY_MAX_PENDING_REQUESTS}
         max_requests: 100000
-        max_retries: ${ENVOY_RETRY_ATTEMPTS:-3}
+        max_retries: ${ENVOY_RETRY_ATTEMPTS}
         retry_budget:
           budget_percent:
             value: 20.0
