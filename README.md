@@ -2,7 +2,7 @@
 
 # RedisForge
 
-**Production-grade Redis 8.2 cluster automation with Envoy, TLS, and ruthless operational discipline.**
+**Production-grade, cloud-agnostic Redis 8.2 cluster automation with Envoy, TLS, and ruthless operational discipline.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Redis](https://img.shields.io/badge/Redis-8.2-red.svg)](https://redis.io/)
@@ -42,10 +42,10 @@
 
 **Flow summary**
 1. **Envoy node** exposes `:6379` (or `:6380` TLS) as the only endpoint apps ever see.
-2. **Three Redis masters** own the 16,384 cluster slots; each master has at least one replica in another AZ.
+2. **Three Redis masters** own the 16,384 cluster slots; each master has at least one replica in another availability zone / failure domain.
 3. **Cluster metadata** (slots + node health) is polled by Envoy every 10s, so applications don’t chase redirects.
-4. **Persistence** uses AOF (`appendfsync everysec`) with S3-backed snapshots.
-5. **Monitoring hooks** (redis_exporter, node_exporter, Envoy metrics) feed your existing Prometheus + Grafana.
+4. **Persistence** uses AOF (`appendfsync everysec`) with off-host snapshots uploaded to your object store (S3/GCS/Azure Blob/MinIO/etc.).
+5. **Monitoring hooks** (redis_exporter, node_exporter, Envoy metrics) feed whatever Prometheus + Grafana stack you already run.
 
 ---
 
@@ -147,7 +147,7 @@ graph TB
 |------|-------------------------------|
 | Master dies (hardware/OS fault) | Redis cluster flags it failing, promotes replica within the same slot range. Envoy refreshes topology every 10s and drops dead upstream connections automatically. |
 | Envoy sees stale topology | `cluster_refresh_rate` + redirect refresh handles MOVED/ASK replies immediately. |
-| Data loss | AOF (`appendonly yes`, `appendfsync everysec`) + S3 archive via `backup.sh`. Optional mixed mode (`aof-use-rdb-preamble yes`) keeps restart time low. |
+| Data loss | AOF (`appendonly yes`, `appendfsync everysec`) + object-storage archive via `backup.sh`. Optional mixed mode (`aof-use-rdb-preamble yes`) keeps restart time low. |
 | Replica lag spikes | Grafana board surfaces `redis_replication_lag_seconds`; run `scripts/scale.sh add` to add replicas in overloaded AZs. |
 
 ```mermaid
@@ -156,12 +156,12 @@ sequenceDiagram
     participant Envoy
     participant MasterA
     participant ReplicaA
-    participant S3
+    participant ObjectStore
 
     Client->>Envoy: SET key:value
     Envoy->>MasterA: Write (slot 1024)
     MasterA-->>ReplicaA: Async replicate (AOF)
-    MasterA-->>S3: (via backup.sh) Upload tarred AOF hourly
+    MasterA-->>ObjectStore: (via backup.sh) Upload tarred AOF hourly
 
     Note over MasterA,ReplicaA: Master failure
     ReplicaA->>ReplicaA: Promote to Master (cluster failover)
@@ -170,8 +170,8 @@ sequenceDiagram
 ```
 
 ### What you must do
-- **Do not** run replicas on the same hypervisor. Spread masters and replicas across three AZs minimum.
-- Run `backup.sh` via cron w/ IAM role that can write to S3 (or equivalent object store).
+- **Do not** run replicas on the same hypervisor. Spread masters and replicas across at least three separate failure domains (zones/regions/providers).
+- Run `backup.sh` via cron with credentials that can write to your object store of choice.
 - Periodically rehearse failover: `./scripts/scale.sh remove <node>` combined with chaos tooling.
 
 ---
@@ -180,12 +180,14 @@ sequenceDiagram
 
 > If you skip any of this, you’re gambling your data. Follow it step-by-step.
 
-### 1. Design the topology
-| Component | Count | Instance type | Ports | Notes |
-|-----------|-------|---------------|-------|-------|
-| Envoy proxy | 1 (per cluster endpoint) | c6i.large (min) | 6379/6380, 9901 | Attach public/ELB if needed; lock admin port to Prometheus CIDRs only. |
-| Redis masters | 3 | r6i.2xlarge (baseline) | 6379, 16379 | Pin each to a different AZ; enable EBS gp3/ io2. |
-| Redis replicas | 3 | r6i.xlarge | 6379, 16379 | Co-locate with opposite masters (A→B, etc.) or standalone nodes. |
+### 1. Design the topology (any cloud, virtualization stack, or bare metal)
+| Component | Count | Baseline sizing | Ports | Notes |
+|-----------|-------|-----------------|-------|-------|
+| Envoy proxy | 1 (per cluster endpoint) | ≥4 vCPU / 8 GB RAM | 6379/6380, 9901 | Front-end with your load balancer / DNS; lock admin port to monitoring CIDRs. |
+| Redis masters | 3 | ≥8 vCPU / 64 GB RAM + NVMe/SSD | 6379, 16379 | Place each in a different availability/failure zone (can even be different clouds). |
+| Redis replicas | 3 | Mirror master sizing | 6379, 16379 | Pair each master with at least one replica housed in another zone/provider. |
+
+Mixing providers (e.g., on-prem + AWS + Azure) is fine as long as latency between nodes stays low and security policies permit the ports above.
 
 ### 2. Prepare the OS
 ```bash
@@ -211,7 +213,7 @@ Populate `.env` with:
 - `REDIS_REQUIREPASS`, `REDIS_ACL_PASS`, `REDIS_READONLY_PASS`, etc. (use `openssl rand -base64 32`)
 - `REDIS_CLUSTER_ANNOUNCE_IP=<this node private IP>`
 - `REDIS_MASTER_{1..3}_HOST` (private DNS / IPs for Envoy)
-- `BACKUP_S3_BUCKET`, `AWS_REGION`
+- `BACKUP_S3_BUCKET`, `AWS_REGION` (use any S3-compatible endpoint; for non-AWS storage supply the correct credentials/endpoint configuration)
 
 ### 4. Deploy Redis nodes (run on each master/replica host)
 ```bash
@@ -253,7 +255,7 @@ curl -k https://<envoy-ip>:6379 -u app_user:$REDIS_ACL_PASS ping
 | `scripts/deploy.sh redis|envoy|monitoring` | Bootstrapping or rebuilding a node | Builds Docker images, validates TLS secrets, runs containers with health checks. | `sudo ./scripts/deploy.sh redis` |
 | `scripts/init-cluster.sh <nodes>` | After all nodes are up | Creates the Redis cluster, pairs masters with replicas, validates state. | `./scripts/init-cluster.sh "host1:6379,...,host6:6379"` |
 | `scripts/scale.sh add|remove` | Adding masters/replicas or decommissioning | Adds nodes, rebalances slots, or drains/removes nodes safely. | `./scripts/scale.sh add 10.0.4.15:6379 --role replica --replica-of <master-id>` |
-| `scripts/backup.sh` | Hourly via cron | Archives the newest AOF + `nodes.conf` and uploads to S3. | `BACKUP_S3_BUCKET=s3://prod-redis ./scripts/backup.sh` |
+| `scripts/backup.sh` | Hourly via cron | Archives the newest AOF + `nodes.conf` and uploads to an S3-compatible object store. | `BACKUP_S3_BUCKET=s3://prod-redis ./scripts/backup.sh` |
 | `scripts/log-rotate.sh <dir> <sizeMB> <count>` | Daily via cron | Rotates Redis logs, compresses old copies, enforces retention. | `./scripts/log-rotate.sh /var/log/redis 1024 7` |
 | `scripts/test-cluster.sh <host> <port>` | Smoke tests after deploy or failover | Runs PING, SET/GET, pub/sub, cluster info checks through Envoy. | `./scripts/test-cluster.sh envoy.company.local 6379` |
 | `scripts/setup-exporters.sh` | After Redis deploy on every node | Launches redis_exporter + node_exporter via Docker (host networking). | `./scripts/setup-exporters.sh` |
@@ -310,7 +312,7 @@ REDIS_REQUIREPASS=$PASS ./scripts/scale.sh remove <node-id>
 ### Backups & retention
 ```bash
 BACKUP_S3_BUCKET=s3://prod-redisforge ./scripts/backup.sh
-# Cron: 0 * * * * /opt/RedisForge/scripts/backup.sh >> /var/log/redisforge-backup.log 2>&1
+# Cron: 0 * * * * BACKUP_S3_BUCKET=s3://prod-redisforge /opt/RedisForge/scripts/backup.sh >> /var/log/redisforge-backup.log 2>&1
 ```
 
 ### Log rotation
@@ -340,7 +342,7 @@ curl -s https://envoy.company.local:9901/stats/prometheus | grep envoy_cluster_u
 |---------|--------------|----------|
 | `redis-cli` through Envoy returns `MOVED` constantly | Envoy can’t refresh topology (wrong Redis auth or TLS). Check Envoy logs + `/clusters`. | Ensure `REDIS_REQUIREPASS` matches across Redis + Envoy env vars; verify `/etc/envoy/certs`. |
 | Slots `<16384` or `cluster_state:fail` | `redis-cli --cluster check <node>` | Replace failed nodes, run `./scripts/scale.sh remove <dead-node-id>`, then add new replica. |
-| Backups missing in S3 | Check `/var/log/redisforge-backup.log` and IAM role permissions. | Attach IAM policy for `s3:PutObject`, ensure `BACKUP_S3_BUCKET` is set, and rerun `backup.sh`. |
+| Backups missing in object store | Check `/var/log/redisforge-backup.log` and credentials. | Ensure the IAM/user/service-account used by the host can write to the bucket, confirm `BACKUP_S3_BUCKET`/endpoint vars, then rerun `backup.sh`. |
 | High replication lag | `redis-cli info replication | grep lag` | Investigate network saturation, add replicas, or reshard heavy slots off overloaded master. |
 | Envoy admin port inaccessible | Security group or firewalls blocking 9901. | Allow Prometheus CIDRs; never expose 9901 publicly. |
 | Containers crash-loop | `docker logs redis-master` or `docker logs envoy-proxy` | Usually missing secrets or wrong env vars. Re-create `.env`, redeploy with correct TLS paths. |
