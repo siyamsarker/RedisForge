@@ -268,24 +268,42 @@ If you don’t know **exactly** why you are running a script, stop. Blind automa
 
 ## Monitoring & Observability
 
-1. **Exporters**
+1. **Exporters (per Redis host)**
    ```bash
    ./scripts/setup-exporters.sh
-   curl http://localhost:9121/metrics | head
-   curl http://localhost:9100/metrics | head
+   curl http://localhost:9121/metrics | head   # redis_exporter
+   curl http://localhost:9100/metrics | head   # node_exporter
    ```
-2. **Prometheus scrape snippets**
-   ```yaml
-   - job_name: 'redisforge-redis'
-     static_configs:
-       - targets: ['10.0.1.10:9121','10.0.2.11:9121','10.0.3.12:9121']
-   - job_name: 'redisforge-envoy'
-     metrics_path: /stats/prometheus
-     static_configs:
-       - targets: ['envoy-vpc.internal:9901']
-   ```
-3. **Grafana** – import `monitoring/grafana/dashboards/redisforge-dashboard.json`.
-4. **Alerting** – adapt `monitoring/alertmanager/alertmanager.yaml`; wire to PagerDuty/Slack.
+2. **Prometheus**
+   - Add the scrape jobs shown below to your existing `prometheus.yml`:
+     ```yaml
+     - job_name: 'redisforge-redis'
+       static_configs:
+         - targets: ['10.0.1.10:9121','10.0.2.11:9121','10.0.3.12:9121']
+     - job_name: 'redisforge-node'
+       static_configs:
+         - targets: ['10.0.1.10:9100','10.0.2.11:9100','10.0.3.12:9100']
+     - job_name: 'redisforge-envoy'
+       metrics_path: /stats/prometheus
+       static_configs:
+         - targets: ['envoy-vpc.internal:9901']
+     ```
+   - Reload Prometheus: `curl -X POST http://<prom-host>:9090/-/reload`
+3. **Alertmanager (Discord-ready)**
+   - File: `monitoring/alertmanager/alertmanager.yaml`
+   - Steps:
+     1. Create a Discord webhook in your server (Server Settings → Integrations → Webhooks).
+     2. Replace every `<YOUR_DISCORD_WEBHOOK_URL>` in the file with the real webhook URL (append `/slack`).
+     3. Deploy Alertmanager with that file (`docker run prom/alertmanager ... -config.file=/etc/alertmanager/alertmanager.yaml`).
+     4. Test:  
+        ```bash
+        curl -XPOST http://<alertmanager-host>:9093/api/v1/alerts -d '[{"labels":{"alertname":"Test","severity":"warning"},"annotations":{"summary":"Discord test"}}]'
+        ```  
+        A message should hit your Discord channel.
+4. **Grafana dashboard**
+   - File: `monitoring/grafana/dashboards/redisforge-dashboard.json`
+   - Import via Grafana UI → Dashboards → Import → Upload JSON.
+   - Datasource configuration lives under `monitoring/grafana/provisioning/datasources/`; point it to your Prometheus endpoint.
 
 Key metrics to never ignore:
 - `redis_cluster_slots_ok` (<16384 = fire drill)
