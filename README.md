@@ -83,9 +83,6 @@ flowchart LR
     C2 --> R2
     C3 --> R3
 
-    C1 -. metrics .-> P1
-    C1 -. system .-> P2
-    B -. metrics .-> P3
     P1 --> Prometheus
     P2 --> Prometheus
     P3 --> Prometheus
@@ -95,7 +92,7 @@ flowchart LR
 **Key traits**
 - Only Envoy is internet/ELB facing. Redis nodes stay in private subnets.
 - Envoy holds a connection pool per master, retries failed ops, and evenly balances keys via Maglev hashing.
-- You run exporters locally; Prometheus scrapes them over private IPs (Multi-AZ friendly, no push gateway).
+- You run redis_exporter + node_exporter locally (per node) and scrape Envoy’s `/stats/prometheus`; Prometheus pulls everything over private IPs.
 
 ---
 
