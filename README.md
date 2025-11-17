@@ -59,7 +59,7 @@ flowchart LR
     subgraph Proxy
         B[Envoy redis_proxy<br/>TLS termination + ACL auth]
     end
-    subgraph RedisCluster["Redis Cluster\u2014three masters with replicas"]
+    subgraph RedisCluster["Redis Cluster: three masters + replicas"]
         C1[Master A<br/>slots 0-5460]
         C2[Master B<br/>slots 5461-10922]
         C3[Master C<br/>slots 10923-16383]
