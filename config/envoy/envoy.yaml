@@ -226,11 +226,8 @@ static_resources:
 # ------------------------------------------------------------------------------
 # STATS CONFIGURATION
 # ------------------------------------------------------------------------------
-stats_sinks:
-- name: envoy.stat_sinks.prometheus
-  typed_config:
-    "@type": type.googleapis.com/envoy.extensions.stat_sinks.prometheus.v3.PrometheusSink
-    emit_dynamic_metadata: true
+# Note: Envoy exposes /stats/prometheus endpoint by default (no sink needed)
+# Remove stats_sinks if using default Prometheus endpoint
 
 stats_config:
   stats_tags:

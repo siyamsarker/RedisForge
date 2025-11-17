@@ -23,6 +23,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-master-1
+    ports:
+      - "7001:6379"
+      - "17001:16379"
     networks: [redisforge-int]
 
   redis-master-2:
@@ -33,6 +36,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-master-2
+    ports:
+      - "7002:6379"
+      - "17002:16379"
     networks: [redisforge-int]
 
   redis-master-3:
@@ -43,6 +49,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-master-3
+    ports:
+      - "7003:6379"
+      - "17003:16379"
     networks: [redisforge-int]
 
   redis-replica-1:
@@ -53,6 +62,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-1
+    ports:
+      - "7004:6379"
+      - "17004:16379"
     networks: [redisforge-int]
 
   redis-replica-2:
@@ -63,6 +75,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-2
+    ports:
+      - "7005:6379"
+      - "17005:16379"
     networks: [redisforge-int]
 
   redis-replica-3:
@@ -73,6 +88,9 @@ services:
     environment:
       <<: *redis-env
       REDIS_CLUSTER_ANNOUNCE_IP: redis-replica-3
+    ports:
+      - "7006:6379"
+      - "17006:16379"
     networks: [redisforge-int]
 
   envoy:

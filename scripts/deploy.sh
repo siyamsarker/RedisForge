@@ -74,9 +74,10 @@ deploy_redis() {
     --name redis-master \
     --hostname redis-master \
     --restart unless-stopped \
+    --network host \
     --ulimit nofile=100000:100000 \
     -p "${REDIS_PORT:-6379}:${REDIS_PORT:-6379}" \
-    -p "$((${REDIS_PORT:-6379} + 10000)):$((${REDIS_PORT:-6379} + 10000))" \
+    -p "${REDIS_CLUSTER_BUS_PORT:-16379}:${REDIS_CLUSTER_BUS_PORT:-16379}" \
     -e REDIS_PORT="${REDIS_PORT:-6379}" \
     -e REDIS_CLUSTER_ANNOUNCE_IP="${REDIS_CLUSTER_ANNOUNCE_IP}" \
     -e REDIS_CLUSTER_ANNOUNCE_PORT="${REDIS_CLUSTER_ANNOUNCE_PORT:-6379}" \
@@ -104,6 +105,26 @@ deploy_redis() {
   log "Redis deployed successfully!"
   info "Check status: docker ps | grep redis-master"
   info "View logs: docker logs redis-master"
+  
+  # Wait for Redis to be healthy
+  log "Waiting for Redis to become healthy..."
+  local max_attempts=30
+  local attempt=1
+  while (( attempt <= max_attempts )); do
+    if docker exec redis-master redis-cli -a "${REDIS_REQUIREPASS}" ping 2>/dev/null | grep -q PONG; then
+      log "✓ Redis is healthy"
+      return 0
+    fi
+    if (( attempt % 5 == 0 )); then
+      info "Still waiting... (attempt $attempt/$max_attempts)"
+    fi
+    sleep 2
+    (( attempt++ ))
+  done
+  
+  error "Redis failed to become healthy after $max_attempts attempts"
+  error "Check logs: docker logs redis-master"
+  exit 1
 }
 
 deploy_envoy() {
@@ -119,12 +140,28 @@ deploy_envoy() {
   docker stop envoy-proxy 2>/dev/null || true
   docker rm envoy-proxy 2>/dev/null || true
   
+  # Validate TLS certificates exist
+  ENVOY_TLS_CERT_PATH="${ENVOY_TLS_CERT_PATH:-${REPO_ROOT}/config/tls/prod/server.crt}"
+  ENVOY_TLS_KEY_PATH="${ENVOY_TLS_KEY_PATH:-${REPO_ROOT}/config/tls/prod/server.key}"
+  ENVOY_TLS_DIR=$(dirname "${ENVOY_TLS_CERT_PATH}")
+  
+  if [[ ! -f "${ENVOY_TLS_CERT_PATH}" ]] || [[ ! -f "${ENVOY_TLS_KEY_PATH}" ]]; then
+    error "TLS certificates not found!"
+    error "Expected: ${ENVOY_TLS_CERT_PATH} and ${ENVOY_TLS_KEY_PATH}"
+    error "Generate certificates with: ./scripts/generate-certs.sh ${ENVOY_TLS_DIR}"
+    exit 1
+  fi
+  
+  # Create certs directory in container mount point
+  mkdir -p "${ENVOY_TLS_DIR}"
+  
   # Run Envoy container
   log "Starting Envoy container..."
   docker run -d \
     --name envoy-proxy \
     --hostname envoy-proxy \
     --restart unless-stopped \
+    --network host \
     --ulimit nofile=100000:100000 \
     -p "${ENVOY_LISTENER_PORT:-6379}:6379" \
     -p "${ENVOY_ADMIN_PORT:-9901}:9901" \
@@ -140,13 +177,37 @@ deploy_envoy() {
     -e ENVOY_MAX_CONNECTIONS="${ENVOY_MAX_CONNECTIONS:-10000}" \
     -e ENVOY_MAX_PENDING_REQUESTS="${ENVOY_MAX_PENDING_REQUESTS:-10000}" \
     -e ENVOY_RETRY_ATTEMPTS="${ENVOY_RETRY_ATTEMPTS:-3}" \
+    -e ENVOY_TLS_ENABLED="${ENVOY_TLS_ENABLED:-true}" \
+    -e ENVOY_TLS_CERT_PATH="/etc/envoy/certs/server.crt" \
+    -e ENVOY_TLS_KEY_PATH="/etc/envoy/certs/server.key" \
     -v "${REPO_ROOT}/config/envoy/envoy.yaml:/etc/envoy/templates/envoy.yaml:ro" \
+    -v "${ENVOY_TLS_DIR}:/etc/envoy/certs:ro" \
     redisforge/envoy:latest
   
   log "Envoy deployed successfully!"
   info "Check status: docker ps | grep envoy-proxy"
   info "Admin interface: http://localhost:${ENVOY_ADMIN_PORT:-9901}"
   info "View logs: docker logs envoy-proxy"
+  
+  # Wait for Envoy to be healthy
+  log "Waiting for Envoy to become healthy..."
+  local max_attempts=30
+  local attempt=1
+  while (( attempt <= max_attempts )); do
+    if curl -sf "http://localhost:${ENVOY_ADMIN_PORT:-9901}/ready" >/dev/null 2>&1; then
+      log "✓ Envoy is healthy"
+      return 0
+    fi
+    if (( attempt % 5 == 0 )); then
+      info "Still waiting... (attempt $attempt/$max_attempts)"
+    fi
+    sleep 2
+    (( attempt++ ))
+  done
+  
+  error "Envoy failed to become healthy after $max_attempts attempts"
+  error "Check logs: docker logs envoy-proxy"
+  exit 1
 }
 
 deploy_monitoring() {

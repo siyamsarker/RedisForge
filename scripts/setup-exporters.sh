@@ -44,8 +44,13 @@ deploy_redis_exporter() {
   docker stop redis-exporter 2>/dev/null || true
   docker rm redis-exporter 2>/dev/null || true
   
-  # Determine Redis address (use localhost if not specified)
-  REDIS_ADDR="${REDIS_HOST:-127.0.0.1}:${REDIS_PORT:-6379}"
+  # Determine Redis address
+  # Use container name if Redis is in Docker, otherwise use host/port from env
+  if docker ps | grep -q "redis-master"; then
+    REDIS_ADDR="redis-master:${REDIS_PORT:-6379}"
+  else
+    REDIS_ADDR="${REDIS_CONTAINER_NAME:-127.0.0.1}:${REDIS_PORT:-6379}"
+  fi
   
   # Build docker run command
   DOCKER_CMD=(
