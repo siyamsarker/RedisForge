@@ -147,7 +147,7 @@ RedisForge assumes your Prometheus/Alertmanager/Grafana stack already exists. Us
 
 1. **Exporters** – run `./scripts/setup-exporters.sh` on each Redis host; it installs redis_exporter (9121) and node_exporter (9100) using host networking.
 
-2. **Prometheus scrape example** (`monitoring/prometheus/prometheus.yaml`):
+2. **Prometheus scrape example** (add to your existing `prometheus.yml`):
    ```yaml
    - job_name: 'redisforge-redis'
      static_configs:
