@@ -120,12 +120,26 @@ services:
 
   toolbox:
     image: redis:7.2-alpine
-    command: ["sleep", "infinity"]
+    command: ["sh", "-c", "apk add --no-cache bash && sleep infinity"]
     working_dir: /workspace
     volumes:
       - ..:/workspace
     networks: [redisforge-int]
 
+  redis-spare-1:
+    build:
+      context: ..
+      dockerfile: docker/redis/Dockerfile
+    hostname: redis-spare-1
+    environment:
+      <<: *redis-env
+      REDIS_CLUSTER_ANNOUNCE_IP: redis-spare-1
+    ports:
+      - "7007:6379"
+      - "17007:16379"
+    networks: [redisforge-int]
+
 networks:
   redisforge-int:
     driver: bridge
+

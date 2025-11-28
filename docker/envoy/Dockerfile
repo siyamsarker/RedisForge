@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /etc/envoy /etc/envoy/templates /var/log/envoy /var/run/envoy /etc/envoy/certs \
+    && chown -R envoy:envoy /etc/envoy /var/log/envoy /var/run/envoy \
     && chmod 755 /etc/envoy /var/log/envoy /var/run/envoy
 
 # Copy Envoy configuration template

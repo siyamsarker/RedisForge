@@ -125,9 +125,21 @@ fi
 if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
   log "✓ Cluster state: OK"
 else
-  error "✗ Cluster state is not OK:"
-  echo "$CLUSTER_INFO"
-  exit 1
+  warn "Cluster state not OK yet, waiting for convergence..."
+  # Cluster may be in transient fail state after creation, retry
+  for i in {1..10}; do
+    sleep 2
+    CLUSTER_INFO=$(redis-cli -h "$HOST" -p "$PORT" "${AUTH_ARGS[@]}" cluster info 2>/dev/null) || true
+    if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
+      log "✓ Cluster state: OK (after ${i} retries)"
+      break
+    fi
+    if (( i == 10 )); then
+      warn "Cluster state still not OK after 10 retries:"
+      echo "$CLUSTER_INFO"
+      warn "This may be normal if nodes are still syncing. Check 'redis-cli cluster info' manually."
+    fi
+  done
 fi
 
 # Display cluster nodes

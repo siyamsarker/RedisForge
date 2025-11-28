@@ -40,8 +40,6 @@ static_resources:
       socket_address:
         address: 0.0.0.0
         port_value: ${ENVOY_LISTENER_PORT}
-    listener_filters:
-    - name: envoy.filters.listener.tls_inspector
     per_connection_buffer_limit_bytes: 1048576
     filter_chains:
     - transport_socket:
@@ -65,13 +63,8 @@ static_resources:
             enable_redirection: true
             enable_command_stats: true
             enable_hashtagging: true
-            max_buffer_size_before_flush: 1024
-            buffer_flush_timeout: 0.003s
-            max_upstream_unknown_connections: 10000
-            enable_read_policy: true
-            read_policy: REPLICA
-            downstream_auth_passwords:
-            - inline_string: "${REDIS_REQUIREPASS}"
+          downstream_auth_passwords:
+            inline_string: "${REDIS_REQUIREPASS}"
           prefix_routes:
             routes:
             - prefix: "/"
@@ -85,7 +78,6 @@ static_resources:
   # ----------------------------------------------------------------------------
   clusters:
   - name: redis_cluster
-    type: STRICT_DNS
     dns_lookup_family: V4_ONLY
     connect_timeout: 0.250s
     per_connection_buffer_limit_bytes: 1048576
@@ -101,18 +93,6 @@ static_resources:
           seconds: ${ENVOY_CLUSTER_REFRESH_SECONDS}
         cluster_refresh_timeout:
           seconds: 5
-        # Refresh on redirect responses
-        redirect_refresh_interval:
-          seconds: 5
-        redirect_refresh_threshold: 10
-        # Refresh on connection failures
-        failure_refresh_threshold: 3
-        host_degradation_consecutive_errors: 5
-        # Authentication
-        upstream_auth_password:
-          inline_string: "${REDIS_REQUIREPASS}"
-        upstream_auth_username:
-          inline_string: "${REDIS_ACL_USER}"
     
     # Seed nodes (initial discovery points)
     load_assignment:
