@@ -2,11 +2,11 @@
 
 # RedisForge
 
-**Production-grade, cloud-agnostic Redis 8.2 cluster automation with Envoy, TLS, and ruthless operational discipline.**
+**Production-grade, cloud-agnostic Redis 8.4 cluster automation with Envoy, TLS, and ruthless operational discipline.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Redis](https://img.shields.io/badge/Redis-8.2-red.svg)](https://redis.io/)
-[![Envoy](https://img.shields.io/badge/Envoy-v1.32-blue.svg)](https://www.envoyproxy.io/)
+[![Redis](https://img.shields.io/badge/Redis-8.4-red.svg)](https://redis.io/)
+[![Envoy](https://img.shields.io/badge/Envoy-v1.36.2-blue.svg)](https://www.envoyproxy.io/)
 [![Docker](https://img.shields.io/badge/Docker-20.10+-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/siyamsarker/RedisForge/pulls)
 

@@ -1,10 +1,10 @@
-# RedisForge - Production-Ready Redis 8.2 OSS Dockerfile
+# RedisForge - Production-Ready Redis 8.4 OSS Dockerfile
 # Optimized for high-throughput distributed systems handling millions of requests/min
 
-FROM redis:8.2-alpine
+FROM redis:8.4-alpine
 
 LABEL maintainer="RedisForge Team"
-LABEL description="Production-optimized Redis 8.2 OSS for distributed cluster deployment"
+LABEL description="Production-optimized Redis 8.4 OSS for distributed cluster deployment"
 LABEL version="1.0.0"
 
 # Install required dependencies for production monitoring and debugging
