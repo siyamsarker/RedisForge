@@ -67,7 +67,7 @@ deploy_redis_exporter() {
   # Run redis_exporter container
   log "Starting Redis Exporter container..."
   "${DOCKER_CMD[@]}" \
-    "${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.62.0}" \
+    "${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.80.1}" \
     --redis.addr="${REDIS_ADDR}" \
     --redis.password="${REDIS_REQUIREPASS}" \
     --redis.user="${REDIS_ACL_USER:-app_user}" \
