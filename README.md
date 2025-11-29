@@ -381,18 +381,39 @@ curl -s https://envoy.company.local:9901/stats/prometheus | grep envoy_cluster_u
 
 ## Integration Testing
 
+See [`tests/run-integration.sh`](tests/run-integration.sh) for the full automated test suite.
+
+**Quick test**:
+
 ```bash
-./scripts/generate-certs.sh config/tls/dev
 ./tests/run-integration.sh
 ```
 
-What it does:
-1. Builds Redis + Envoy images.
-2. Spins up 3 masters + 3 replicas + Envoy via Docker Compose.
-3. Runs `init-cluster.sh` and `test-cluster.sh`.
-4. Tears everything down so your workstation isn’t polluted.
+Validates:
+- ✅ PING through Envoy
+- ✅ SET/GET operations
+- ⚠️ Pub/Sub (see limitations below)
+- ✅ Cluster failover
+- ✅ Data persistence
 
 If this fails locally, **do not** deploy to production. Fix the tests first.
+
+---
+
+## Known Limitations
+
+### Pub/Sub Through Envoy
+
+> **⚠️ IMPORTANT**: Redis Pub/Sub is **not fully supported** when routing through Envoy's `redis_proxy` in cluster mode.
+
+**Why**: Envoy's Redis proxy is designed for request/response commands (GET, SET, etc.) and doesn't maintain the long-lived connections required for Pub/Sub subscriptions.
+
+**Workarounds**:
+1. **Direct connection**: Connect directly to Redis nodes for Pub/Sub (bypass Envoy)
+2. **Alternative messaging**: Use Redis Streams or external message brokers (RabbitMQ, Kafka) for pub/sub patterns
+3. **Separate cluster**: Deploy a dedicated Redis instance (non-cluster) for Pub/Sub behind Envoy
+
+**Testing**: Pub/Sub tests are expected to fail in `test-cluster.sh` when testing through Envoy.
 
 ---
 

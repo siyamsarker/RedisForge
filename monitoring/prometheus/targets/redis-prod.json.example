@@ -1,0 +1,45 @@
+# Example File-based Service Discovery Target
+# File: monitoring/prometheus/targets/redis-prod.json
+#
+# This file can be dynamically updated by deployment scripts.
+# Prometheus will automatically reload targets every 30s.
+
+[
+  {
+    "targets": [
+      "10.0.1.10:9121",
+      "10.0.1.11:9121",
+      "10.0.1.12:9121"
+    ],
+    "labels": {
+      "job": "redis",
+      "role": "master",
+      "datacenter": "us-east-1",
+      "cluster": "redisforge-prod"
+    }
+  },
+  {
+    "targets": [
+      "10.0.2.10:9121",
+      "10.0.2.11:9121",
+      "10.0.2.12:9121"
+    ],
+    "labels": {
+      "job": "redis",
+      "role": "replica",
+      "datacenter": "us-east-1",
+      "cluster": "redisforge-prod"
+    }
+  },
+  {
+    "targets": [
+      "10.0.1.100:9901"
+    ],
+    "labels": {
+      "job": "envoy",
+      "role": "proxy",
+      "datacenter": "us-east-1",
+      "cluster": "redisforge-prod"
+    }
+  }
+]

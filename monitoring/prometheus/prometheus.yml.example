@@ -1,0 +1,89 @@
+# Prometheus Configuration Example
+# File: monitoring/prometheus/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'redisforge-production'
+    environment: 'prod'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Load alerting rules
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # -----------------------------------------------------------------------------
+  # Redis Exporter (one per Redis node)
+  # -----------------------------------------------------------------------------
+  - job_name: 'redis'
+    static_configs:
+      - targets:
+          - 'redis-master-1:9121'
+          - 'redis-master-2:9121'
+          - 'redis-master-3:9121'
+          - 'redis-replica-1:9121'
+          - 'redis-replica-2:9121'
+          - 'redis-replica-3:9121'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [instance]
+        regex: 'redis-(.*):.*'
+        target_label: node_type
+
+  # -----------------------------------------------------------------------------
+  # Envoy Proxy Metrics
+  # -----------------------------------------------------------------------------
+  - job_name: 'envoy'
+    metrics_path: '/stats/prometheus'
+    static_configs:
+      - targets:
+          - 'envoy:9901'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # -----------------------------------------------------------------------------
+  # Node Exporter (system metrics)
+  # -----------------------------------------------------------------------------
+  - job_name: 'node'
+    static_configs:
+      - targets:
+          - 'redis-master-1:9100'
+          - 'redis-master-2:9100'
+          - 'redis-master-3:9100'
+          - 'redis-replica-1:9100'
+          - 'redis-replica-2:9100'
+          - 'redis-replica-3:9100'
+          - 'envoy:9100'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # -----------------------------------------------------------------------------
+  # File-based Service Discovery (Dynamic targets)
+  # -----------------------------------------------------------------------------
+  - job_name: 'redis-dynamic'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/redis-*.json'
+        refresh_interval: 30s
+
+  # -----------------------------------------------------------------------------
+  # DNS-based Service Discovery (Kubernetes/Cloud)
+  # -----------------------------------------------------------------------------
+  # - job_name: 'redis-dns'
+  #   dns_sd_configs:
+  #     - names:
+  #         - 'redis-master.default.svc.cluster.local'
+  #       type: 'A'
+  #       port: 9121

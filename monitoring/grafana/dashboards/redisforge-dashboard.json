@@ -8,30 +8,233 @@
   "iteration": 1658920000000,
   "links": [],
   "panels": [
-    {"type": "row", "title": "Redis Overview", "collapsed": false, "panels": []},
-    {"type": "stat", "title": "Ops/sec", "gridPos": {"x":0,"y":1,"w":6,"h":4},
-     "targets": [{"expr": "rate(redis_commands_processed_total[1m])", "refId": "A"}]},
-    {"type": "stat", "title": "Memory Used", "gridPos": {"x":6,"y":1,"w":6,"h":4},
-     "targets": [{"expr": "redis_memory_used_bytes", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "bytes"}}},
-    {"type": "graph", "title": "Latency p50/p95", "gridPos": {"x":0,"y":5,"w":12,"h":6},
-     "targets": [
-       {"expr": "histogram_quantile(0.50, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "A"},
-       {"expr": "histogram_quantile(0.95, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "B"}
-     ]},
-    {"type": "graph", "title": "Keyspace Hits/Misses", "gridPos": {"x":0,"y":11,"w":12,"h":6},
-     "targets": [
-       {"expr": "rate(redis_keyspace_hits_total[1m])", "refId": "A"},
-       {"expr": "rate(redis_keyspace_misses_total[1m])", "refId": "B"}
-     ]},
-    {"type": "stat", "title": "Replication Lag (s)", "gridPos": {"x":0,"y":17,"w":6,"h":4},
-     "targets": [{"expr": "max(redis_connected_slaves) - min(redis_connected_slaves)", "refId": "A"}]},
-    {"type": "stat", "title": "Envoy Upstream Healthy", "gridPos": {"x":6,"y":17,"w":6,"h":4},
-     "targets": [{"expr": "sum(envoy_cluster_healthy{cluster=\"redis_cluster\"})", "refId": "A"}]},
-    {"type": "graph", "title": "Envoy Requests/Errors", "gridPos": {"x":0,"y":21,"w":12,"h":6},
-     "targets": [
-       {"expr": "rate(envoy_cluster_upstream_rq_total{cluster=\"redis_cluster\"}[1m])", "refId": "A"},
-       {"expr": "rate(envoy_cluster_upstream_rq_xx{cluster=\"redis_cluster\",envoy_response_code_class=\"5\"}[1m])", "refId": "B"}
-     ]}
+    {"type": "row", "title": "Cluster Health", "collapsed": false, "gridPos": {"x":0,"y":0,"w":24,"h":1}, "panels": []},
+    {
+      "type": "stat", 
+      "title": "Cluster State", 
+      "gridPos": {"x":0,"y":1,"w":6,"h":4},
+      "targets": [{
+        "expr": "redis_cluster_state{cluster=\"redis_cluster\"}",
+        "refId": "A",
+        "legendFormat": "State"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "FAIL", "color": "red"}}},
+            {"type": "value", "options": {"1": {"text": "OK", "color": "green"}}}
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Connected Nodes",
+      "gridPos": {"x":6,"y":1,"w":6,"h":4},
+      "targets": [{
+        "expr": "redis_cluster_size{cluster=\"redis_cluster\"}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 6, "color": "green"}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "Slots Assigned",
+      "gridPos": {"x":12,"y":1,"w":6,"h":4},
+      "targets": [{
+        "expr": "redis_cluster_slots_assigned{cluster=\"redis_cluster\"}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 16384, "color": "green"}]}}}
+    },
+    {
+      "type": "gauge",
+      "title": "Slot Coverage %",
+      "gridPos": {"x":18,"y":1,"w":6,"h":4},
+      "targets": [{
+        "expr": "(redis_cluster_slots_assigned{cluster=\"redis_cluster\"} / 16384) * 100",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 90, "color": "yellow"},
+              {"value": 100, "color": "green"}
+            ]
+          }
+        }
+      }
+    },
+    
+    {"type": "row", "title": "Performance", "collapsed": false, "gridPos": {"x":0,"y":5,"w":24,"h":1}, "panels": []},
+    {
+      "type": "graph",
+      "title": "Operations/sec",
+      "gridPos": {"x":0,"y":6,"w":12,"h":6},
+      "targets": [{
+        "expr": "rate(redis_commands_processed_total[1m])",
+        "refId": "A",
+        "legendFormat": "{{instance}}"
+      }],
+      "yaxes": [{"format": "ops"}, {"show": false}]
+    },
+    {
+      "type": "graph",
+      "title": "Latency (p50/p95/p99)",
+      "gridPos": {"x":12,"y":6,"w":12,"h":6},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "A", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "B", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(envoy_cluster_upstream_rq_time_bucket{cluster=\"redis_cluster\"}[5m])) by (le))", "refId": "C", "legendFormat": "p99"}
+      ],
+      "yaxes": [{"format": "ms"}, {"show": false}]
+    },
+    
+    {"type": "row", "title": "Memory & Cache", "collapsed": false, "gridPos": {"x":0,"y":12,"w":24,"h":1}, "panels": []},
+    {
+      "type": "graph",
+      "title": "Memory Usage",
+      "gridPos": {"x":0,"y":13,"w":8,"h":6},
+      "targets": [{
+        "expr": "redis_memory_used_bytes",
+        "refId": "A",
+        "legendFormat": "{{instance}}"
+      }],
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "yaxes": [{"format": "bytes"}, {"show": false}]
+    },
+    {
+      "type": "graph",
+      "title": "Memory Fragmentation Ratio",
+      "gridPos": {"x":8,"y":13,"w":8,"h":6},
+      "targets": [{
+        "expr": "redis_memory_fragmentation_ratio",
+        "refId": "A",
+        "legendFormat": "{{instance}}"
+      }],
+      "alert": {
+        "conditions": [{"evaluator": {"params": [1.5], "type": "gt"}, "query": {"params": ["A", "5m", "now"]}, "type": "query"}],
+        "name": "High Memory Fragmentation"
+      },
+      "yaxes": [{"format": "short"}, {"show": false}]
+    },
+    {
+      "type": "graph",
+      "title": "Keyspace Hits/Misses",
+      "gridPos": {"x":16,"y":13,"w":8,"h":6},
+      "targets": [
+        {"expr": "rate(redis_keyspace_hits_total[1m])", "refId": "A", "legendFormat": "Hits"},
+        {"expr": "rate(redis_keyspace_misses_total[1m])", "refId": "B", "legendFormat": "Misses"}
+      ],
+      "yaxes": [{"format": "ops"}, {"show": false}]
+    },
+    
+    {"type": "row", "title": "Envoy Proxy", "collapsed": false, "gridPos": {"x":0,"y":19,"w":24,"h":1}, "panels": []},
+    {
+      "type": "stat",
+      "title": "Upstream Healthy Hosts",
+      "gridPos": {"x":0,"y":20,"w":6,"h":4},
+      "targets": [{
+        "expr": "sum(envoy_cluster_healthy{cluster=\"redis_cluster\"})",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 3, "color": "yellow"}, {"value": 6, "color": "green"}]}}}
+    },
+    {
+      "type": "graph",
+      "title": "Envoy Requests/Errors",
+      "gridPos": {"x":6,"y":20,"w":9,"h":6},
+      "targets": [
+        {"expr": "rate(envoy_cluster_upstream_rq_total{cluster=\"redis_cluster\"}[1m])", "refId": "A", "legendFormat": "Requests"},
+        {"expr": "rate(envoy_cluster_upstream_rq_xx{cluster=\"redis_cluster\",envoy_response_code_class=\"5\"}[1m])", "refId": "B", "legendFormat": "5xx Errors"}
+      ],
+      "yaxes": [{"format": "reqps"}, {"show": false}]
+    },
+    {
+      "type": "graph",
+      "title": "Circuit Breaker Stats",
+      "gridPos": {"x":15,"y":20,"w":9,"h":6},
+      "targets": [
+        {"expr": "envoy_cluster_circuit_breakers_default_cx_open{cluster=\"redis_cluster\"}", "refId": "A", "legendFormat": "Connections Open"},
+        {"expr": "envoy_cluster_circuit_breakers_default_rq_pending_open{cluster=\"redis_cluster\"}", "refId": "B", "legendFormat": "Requests Pending"}
+      ],
+      "yaxes": [{"format": "short"}, {"show": false}]
+    },
+    
+    {"type": "row", "title": "Replication", "collapsed": false, "gridPos": {"x":0,"y":26,"w":24,"h":1}, "panels": []},
+    {
+      "type": "graph",
+      "title": "Replication Offset",
+      "gridPos": {"x":0,"y":27,"w":12,"h":6},
+      "targets": [{
+        "expr": "redis_master_repl_offset",
+        "refId": "A",
+        "legendFormat": "{{instance}}"
+      }],
+      "yaxes": [{"format": "short"}, {"show": false}]
+    },
+    {
+      "type": "stat",
+      "title": "Replication Lag (max)",
+      "gridPos": {"x":12,"y":27,"w":6,"h":6},
+      "targets": [{
+        "expr": "max(redis_master_repl_offset) - min(redis_slave_repl_offset)",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1000, "color": "yellow"}, {"value": 10000, "color": "red"}]}
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Connected Slaves",
+      "gridPos": {"x":18,"y":27,"w":6,"h":6},
+      "targets": [{
+        "expr": "sum(redis_connected_slaves)",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 3, "color": "green"}]}}}
+    },
+    
+    {"type": "row", "title": "Network", "collapsed": false, "gridPos": {"x":0,"y":33,"w":24,"h":1}, "panels": []},
+    {
+      "type": "graph",
+      "title": "Network I/O",
+      "gridPos": {"x":0,"y":34,"w":12,"h":6},
+      "targets": [
+        {"expr": "rate(redis_net_input_bytes_total[1m])", "refId": "A", "legendFormat": "{{instance}} In"},
+        {"expr": "rate(redis_net_output_bytes_total[1m])", "refId": "B", "legendFormat": "{{instance}} Out"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}},
+      "yaxes": [{"format": "Bps"}, {"show": false}]
+    },
+    {
+      "type": "graph",
+      "title": "Connected Clients",
+      "gridPos": {"x":12,"y":34,"w":12,"h":6},
+      "targets": [{
+        "expr": "redis_connected_clients",
+        "refId": "A",
+        "legendFormat": "{{instance}}"
+      }],
+      "yaxes": [{"format": "short"}, {"show": false}]
+    }
   ],
   "refresh": "30s",
   "schemaVersion": 38,
@@ -40,8 +243,7 @@
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
-  "title": "RedisForge: Redis + Envoy",
+  "title": "RedisForge: Redis Cluster + Envoy",
   "uid": "redisforge-main",
-  "version": 1
+  "version": 2
 }
-
