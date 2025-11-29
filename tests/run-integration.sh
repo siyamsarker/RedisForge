@@ -54,4 +54,22 @@ echo "Testing scaling: Removing the new replica..."
 SPARE_ID=$(docker compose -f "$COMPOSE_FILE" exec -T toolbox sh -c "redis-cli -h redis-spare-1 -p 6379 -a '$REDIS_PASS' cluster myid" | tr -d '\r')
 docker compose -f "$COMPOSE_FILE" exec -T toolbox sh -c "cd /workspace && REDIS_REQUIREPASS='$REDIS_PASS' ./scripts/scale.sh remove $SPARE_ID"
 
-echo "All integration tests passed."
+echo "========================================"
+echo "Advanced Integration Tests"
+echo "========================================"
+
+echo "Test 1: Failover Test (Master failure recovery)..."
+./tests/test-failover.sh
+
+echo ""
+echo "Test 2: Persistence Test (AOF data recovery)..."
+./tests/test-persistence.sh
+
+echo ""
+echo "Test 3: Network Partition Test (Split-brain recovery)..."
+./tests/test-network-partition.sh
+
+echo ""
+echo "========================================"
+echo "All integration tests passed ✓"
+echo "========================================"
