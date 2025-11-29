@@ -1,10 +1,29 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# ==================================================================================================
+# Script Name: backup.sh
+# Description: Performs automated backups of Redis AOF (Append Only File) persistence files.
+#              - Archives all .aof files and nodes.conf (cluster config)
+#              - Compresses the archive (tar.gz)
+#              - Uploads to S3 bucket
+#              - Rotates local backups based on retention policy
+#
+# Usage:       ./scripts/backup.sh
+#
+# Environment Variables:
+#   BACKUP_S3_BUCKET      - S3 bucket URI (s3://bucket/path) [REQUIRED]
+#   BACKUP_DIR            - Local directory for backups (default: ./backups)
+#   DATA_DIR              - Redis data directory (default: ./data/redis)
+#   BACKUP_RETENTION_DAYS - Days to keep local backups (optional)
+#
+# Prerequisites:
+#   - AWS CLI installed and configured
+#   - Write permissions to BACKUP_S3_BUCKET
+#
+# Author:      RedisForge Team
+# License:     MIT
+# ==================================================================================================
 
-################################################################################
-# RedisForge - AOF Backup Script
-# Performs AOF snapshot backup and uploads to S3 (requires AWS CLI configured)
-################################################################################
+set -euo pipefail
 
 # Validate required environment variables
 if [[ -z "${BACKUP_S3_BUCKET:-}" ]]; then
@@ -28,6 +47,8 @@ DATA_DIR=${DATA_DIR:-"$(pwd)/data/redis"}
 mkdir -p "$BACKUP_DIR"
 
 # Find AOF file (handle multiple AOF files from Redis 7+)
+# Redis 7+ uses a multi-part AOF mechanism (base + inc files).
+# We need to capture all of them to ensure a consistent restore.
 AOF_FILES=()
 while IFS= read -r -d '' file; do
   AOF_FILES+=("$file")
@@ -52,6 +73,8 @@ for aof in "${AOF_FILES[@]}"; do
 done
 
 # Add nodes.conf if it exists (cluster configuration)
+# This file contains the cluster topology and slot assignments.
+# Essential for restoring the cluster state.
 if [[ -f "$DATA_DIR/nodes.conf" ]]; then
   TAR_ARGS+=(-C "$DATA_DIR" "nodes.conf")
   echo "Including nodes.conf (cluster configuration)"

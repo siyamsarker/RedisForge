@@ -120,7 +120,7 @@ services:
 
   toolbox:
     image: redis:7.2-alpine
-    command: ["sh", "-c", "apk add --no-cache bash && sleep infinity"]
+    command: ["sh", "-c", "apk add --no-cache bash curl && sleep infinity"]
     working_dir: /workspace
     volumes:
       - ..:/workspace

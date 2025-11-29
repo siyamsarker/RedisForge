@@ -36,6 +36,12 @@ NODES="redis-master-1:6379,redis-master-2:6379,redis-master-3:6379,redis-replica
 docker compose -f "$COMPOSE_FILE" exec -T toolbox sh -c "cd /workspace && REDIS_REQUIREPASS='$REDIS_PASS' ./scripts/init-cluster.sh '$NODES'"
 
 echo "Running integration tests via Envoy..."
+echo "Waiting for Envoy to be ready..."
+until docker compose -f "$COMPOSE_FILE" exec -T toolbox sh -c "curl -s http://envoy:9901/ready" | grep -q "LIVE"; do
+  echo "Envoy not ready yet..."
+  sleep 2
+done
+echo "Envoy is ready!"
 docker compose -f "$COMPOSE_FILE" exec -T toolbox sh -c "cd /workspace && REDIS_REQUIREPASS='$REDIS_PASS' TLS_ENABLED=true TLS_CA_FILE=/workspace/$CERT_DIR/ca.crt TLS_SERVER_NAME=redisforge.local ./scripts/test-cluster.sh envoy 6379"
 
 echo "Testing scaling: Adding a new replica (redis-spare-1)..."

@@ -67,12 +67,18 @@ static_resources:
             enable_redirection: true
             enable_command_stats: true
             enable_hashtagging: true
+          # Authentication for Downstream Clients (App -> Envoy)
+          # Envoy enforces this password before proxying commands to Redis.
           downstream_auth_passwords:
-          - inline_string: "testpass"
+          - inline_string: "${REDIS_REQUIREPASS}"
+          
+          # Route all traffic to the Redis Cluster
           prefix_routes:
             routes:
             - prefix: "/"
               cluster: redis_cluster
+          
+          # Enable latency tracking in microseconds
           latency_in_micros: true
 
   # ----------------------------------------------------------------------------
@@ -80,21 +86,21 @@ static_resources:
   # ----------------------------------------------------------------------------
   clusters:
   - name: redis_cluster
-    dns_lookup_family: V4_ONLY
     connect_timeout: 0.250s
     per_connection_buffer_limit_bytes: 1048576
     lb_policy: MAGLEV  # Consistent hashing for better distribution
     
     # Redis Cluster Discovery Configuration
+    # Envoy periodically queries the cluster topology (CLUSTER SLOTS) to update its routing table.
     cluster_type:
       name: envoy.clusters.redis
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.clusters.redis.v3.RedisClusterConfig
-        # Topology refresh every 10 seconds
+        # Topology refresh every 10 seconds (configurable via env var)
         cluster_refresh_rate:
           seconds: ${ENVOY_CLUSTER_REFRESH_SECONDS}
         cluster_refresh_timeout:
-          seconds: 5
+          seconds: 10
     
     # Seed nodes (initial discovery points)
     load_assignment:
@@ -130,6 +136,7 @@ static_resources:
           load_balancing_weight: 100
     
     # Redis protocol options
+    # Credentials for Envoy to authenticate with Upstream Redis Nodes
     typed_extension_protocol_options:
       envoy.filters.network.redis_proxy:
         "@type": type.googleapis.com/envoy.extensions.filters.network.redis_proxy.v3.RedisProtocolOptions

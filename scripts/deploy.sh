@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
-
-################################################################################
-# RedisForge - Direct Docker Deployment Script (No Docker Compose)
-# Deploys Redis cluster or Envoy proxy using native Docker commands on EC2
+# ==================================================================================================
+# Script Name: deploy.sh
+# Description: Main deployment orchestrator for RedisForge components.
+#              Deploys Redis Cluster nodes, Envoy Proxy, and Monitoring stack using native Docker.
 #
-# COMPATIBILITY:
+# Usage:       ./scripts/deploy.sh [ROLE]
+#              Roles:
+#                redis      - Deploys a Redis master node (stateful)
+#                envoy      - Deploys the Envoy proxy (stateless)
+#                monitoring - Deploys redis_exporter and node_exporter
+#
+# Prerequisites:
+#              - Docker Engine 20.10+ installed and running
+#              - .env file configured (copy from env.example)
+#              - User added to 'docker' group (linux)
+#
+# Author:      RedisForge Team
+# License:     MIT
+# ==================================================================================================
+
+# --------------------------------------------------------------------------------------------------
+# COMPATIBILITY NOTES
+# --------------------------------------------------------------------------------------------------
 # - Amazon Linux 2023
 # - Ubuntu 24.04 LTS (Noble Numbat)
 # - Docker Engine 20.10+ or Docker CE 24.0+
@@ -13,7 +30,7 @@
 # - sudo apt install docker.io docker-compose-v2 git redis-tools curl jq
 # - sudo systemctl enable --now docker
 # - sudo usermod -aG docker $USER && newgrp docker
-################################################################################
+# --------------------------------------------------------------------------------------------------
 
 set -euo pipefail
 
@@ -48,11 +65,26 @@ load_env() {
   fi
 }
 
+# Check if a command exists in the system path
+# Arguments:
+#   $1 - Command name to check
+# Returns:
+#   0 if command exists, exits with error 1 otherwise
 require() {
   command -v "$1" >/dev/null 2>&1 || { error "Missing dependency: $1"; exit 1; }
 }
 
-deploy_redis() {
+# ==================================================================================================
+# Deploy Redis Master Node
+# ==================================================================================================
+# Description:
+#   Deploys a single Redis master node container with cluster configuration.
+#   Mounts configuration templates and data volumes.
+#   Waits for the container to become healthy.
+#
+# Globals:
+#   REPO_ROOT, REDIS_PORT, REDIS_CLUSTER_BUS_PORT, etc. (from .env)
+# ==================================================================================================
   log "Deploying Redis master node..."
   
   # Create directories
@@ -127,7 +159,17 @@ deploy_redis() {
   exit 1
 }
 
-deploy_envoy() {
+# ==================================================================================================
+# Deploy Envoy Proxy
+# ==================================================================================================
+# Description:
+#   Deploys the Envoy proxy container to handle TLS termination and request routing.
+#   Validates TLS certificates before starting.
+#   Mounts envoy.yaml configuration and certificates.
+#
+# Globals:
+#   REPO_ROOT, ENVOY_LISTENER_PORT, ENVOY_ADMIN_PORT, etc. (from .env)
+# ==================================================================================================
   log "Deploying Envoy proxy..."
   
   # Build Envoy image if needed
@@ -210,7 +252,12 @@ deploy_envoy() {
   exit 1
 }
 
-deploy_monitoring() {
+# ==================================================================================================
+# Deploy Monitoring Stack
+# ==================================================================================================
+# Description:
+#   Deploys redis_exporter and node_exporter using the setup-exporters.sh script.
+# ==================================================================================================
   log "Deploying monitoring exporters..."
   
   # Use the dedicated exporter setup script

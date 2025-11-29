@@ -29,6 +29,13 @@
 11. [Repository Layout](#repository-layout)
 12. [Contributing](#contributing) · [License](#license) · [Support](#support)
 
+## Quick Links
+
+- 📚 [Monitoring Setup Guide](docs/monitoring-setup.md)
+- 📖 [Operations Runbook](docs/operations-runbook.md)
+- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
+- 📜 [Code of Conduct](CODE_OF_CONDUCT.md)
+
 ---
 
 ## Purpose & How It Works
@@ -208,6 +215,9 @@ sudo usermod -aG docker $USER && newgrp docker
 git clone https://github.com/siyamsarker/RedisForge.git
 cd RedisForge && cp env.example .env
 ```
+
+For detailed monitoring setup, see [docs/monitoring-setup.md](docs/monitoring-setup.md).
+For operational procedures, see [docs/operations-runbook.md](docs/operations-runbook.md).
 
 Populate `.env` with:
 - `REDIS_REQUIREPASS`, `REDIS_ACL_PASS`, `REDIS_READONLY_PASS`, etc. (use `openssl rand -base64 32`)
@@ -409,6 +419,8 @@ RedisForge/
 2. Make your changes + update docs.
 3. Run `./tests/run-integration.sh` (or your CI equivalent).
 4. Open a PR with logs/screenshots. No tests = no merge.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for our community standards.
 
 Keep scripts idempotent, don’t hardcode secrets, and document every operational change.
 

@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# ==================================================================================================
+# Script Name: init-cluster.sh
+# Description: Initializes a Redis Cluster across provided nodes.
+#              - Validates node connectivity
+#              - Creates cluster with 1 replica per master
+#              - Verifies cluster state and slot distribution
+#
+# Usage:       ./scripts/init-cluster.sh "host1:port,host2:port,..."
+#
+# Arguments:
+#   $1 - Comma-separated list of at least 6 nodes (host:port)
+#        Example: "10.0.0.1:6379,10.0.0.2:6379,..."
+#
+# Environment Variables:
+#   REDIS_REQUIREPASS - Redis authentication password (optional)
+#   MAX_RETRIES       - Max attempts to connect to nodes (default: 30)
+#   RETRY_DELAY       - Seconds between retries (default: 2)
+#
+# Author:      RedisForge Team
+# License:     MIT
+# ==================================================================================================
 
-################################################################################
-# RedisForge - Redis Cluster Initialization Script
-# Initializes a Redis Cluster across multiple masters with replicas
-################################################################################
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -53,12 +70,18 @@ log "================================================"
 echo ""
 
 # Build auth arguments
+# Build auth arguments for redis-cli
+# If password is set, adds --pass argument
 AUTH_ARGS=()
 if [[ -n "$PASSWORD" ]]; then
   AUTH_ARGS+=(--pass "$PASSWORD")
 fi
 
-# Wait for all nodes to be ready
+# ==================================================================================================
+# Node Connectivity Check
+# ==================================================================================================
+# Iterates through all provided nodes to ensure they are reachable and ready.
+# Uses TCP check first, then Redis PING.
 log "Checking node connectivity..."
 for node in "${NODES[@]}"; do
   HOST=${node%:*}
@@ -96,7 +119,13 @@ done
 echo ""
 log "All nodes are ready. Creating cluster..."
 
-# Create cluster
+# ==================================================================================================
+# Cluster Creation
+# ==================================================================================================
+# Uses redis-cli --cluster create to form the cluster.
+# --cluster-replicas 1: Ensures 1 replica for every master node.
+# --cluster-yes: Auto-confirms the configuration.
+
 log "Executing redis-cli --cluster create..."
 if redis-cli "${AUTH_ARGS[@]}" \
   --cluster create "${NODES[@]}" \
@@ -121,6 +150,12 @@ if ! CLUSTER_INFO=$(redis-cli -h "$HOST" -p "$PORT" "${AUTH_ARGS[@]}" cluster in
   error "Failed to retrieve cluster info"
   exit 1
 fi
+
+# ==================================================================================================
+# Cluster Verification
+# ==================================================================================================
+# Checks if the cluster state is 'ok'.
+# Includes retry logic as the cluster might briefly report 'fail' during convergence.
 
 if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
   log "✓ Cluster state: OK"

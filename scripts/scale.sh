@@ -1,10 +1,31 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# ==================================================================================================
+# Script Name: scale.sh
+# Description: Manages Redis Cluster scaling operations.
+#              - Adds new master or replica nodes
+#              - Removes existing nodes
+#              - Handles cluster rebalancing and slot migration
+#              - Ensures zero-downtime scaling
+#
+# Usage:       ./scripts/scale.sh [ACTION] [TARGET] [OPTIONS]
+#
+# Actions:
+#   add <host:port>     - Add a new node to the cluster
+#   remove <node_id>    - Remove a node from the cluster
+#
+# Options:
+#   --role [master|replica]        - Role for new node (default: master)
+#   --replica-of <master_id>       - Master ID to replicate (required for replica)
+#
+# Environment Variables:
+#   REDIS_REQUIREPASS - Redis authentication password
+#   SEED              - Existing cluster node to connect to (auto-detected)
+#
+# Author:      RedisForge Team
+# License:     MIT
+# ==================================================================================================
 
-################################################################################
-# RedisForge - Cluster Scaling Script
-# Add or remove nodes and rebalance/reshard with minimal disruption
-################################################################################
+set -euo pipefail
 
 # Usage information
 usage() {
@@ -114,7 +135,16 @@ if [[ -n "${REDIS_REQUIREPASS:-}" ]]; then
   AUTH_ARGS+=(--pass "$REDIS_REQUIREPASS")
 fi
 
-# Determine seed node
+# ==================================================================================================
+# Seed Node Discovery
+# ==================================================================================================
+# Determines which existing cluster node to use as an entry point (seed).
+# Priority:
+# 1. SEED env var
+# 2. CLUSTER_SEED env var
+# 3. First node from CLUSTER_NODES list
+# 4. Default to localhost:6379
+
 SEED=${SEED:-}
 if [[ -z "$SEED" ]]; then
   if [[ -n "${CLUSTER_SEED:-}" ]]; then
@@ -182,6 +212,7 @@ case "$ACTION" in
     
     if [[ "$ROLE" == "master" ]]; then
       log "Adding node as master..."
+      # Add node to cluster
       if ! redis-cli "${AUTH_ARGS[@]}" --cluster add-node "$NEW_NODE" "$SEED"; then
         error "Failed to add node $NEW_NODE as master"
         exit 1
@@ -189,6 +220,9 @@ case "$ACTION" in
       
       log "✓ Node added as master"
       log "Rebalancing cluster to distribute slots..."
+      
+      # Rebalance cluster to assign slots to the new master
+      # --cluster-threshold 1.05: Only rebalance if imbalance > 5%
       if ! redis-cli "${AUTH_ARGS[@]}" --cluster rebalance "$SEED" --cluster-threshold 1.05 --cluster-yes; then
         warn "Rebalancing failed or not needed"
       else
@@ -231,6 +265,8 @@ case "$ACTION" in
     fi
     
     # Rebalance to drain slots from target node
+    # Moves all slots from the target node to other masters.
+    # --cluster-weight <node_id>=0: Tells Redis to assign 0 weight (0 slots) to this node.
     log "Draining slots from node $NODE_ID..."
     log "This may take several minutes for large datasets..."
     
