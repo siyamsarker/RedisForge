@@ -1,7 +1,7 @@
 # RedisForge - Production-Ready Envoy Proxy Dockerfile
 # Optimized for Redis cluster proxy handling millions of requests per minute
 
-FROM envoyproxy/envoy:v1.32.1
+FROM envoyproxy/envoy:v1.36.2
 
 LABEL maintainer="RedisForge Team"
 LABEL description="Production-optimized Envoy proxy for Redis cluster management and routing"

@@ -40,6 +40,10 @@ static_resources:
       socket_address:
         address: 0.0.0.0
         port_value: ${ENVOY_LISTENER_PORT}
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     per_connection_buffer_limit_bytes: 1048576
     filter_chains:
     - transport_socket:
@@ -64,14 +68,12 @@ static_resources:
             enable_command_stats: true
             enable_hashtagging: true
           downstream_auth_passwords:
-            inline_string: "${REDIS_REQUIREPASS}"
+          - inline_string: "testpass"
           prefix_routes:
             routes:
             - prefix: "/"
               cluster: redis_cluster
           latency_in_micros: true
-          downstream_auth_username:
-            inline_string: "${REDIS_ACL_USER}"
 
   # ----------------------------------------------------------------------------
   # CLUSTERS
