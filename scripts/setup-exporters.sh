@@ -97,7 +97,7 @@ deploy_node_exporter() {
     --pid="host" \
     -p "${NODE_EXPORTER_PORT:-9100}:9100" \
     -v "/:/host:ro,rslave" \
-    "${NODE_EXPORTER_IMAGE:-prom/node-exporter:v1.8.2}" \
+    "${NODE_EXPORTER_IMAGE:-prom/node-exporter:v1.10.2}" \
     --path.rootfs=/host \
     --web.listen-address=":${NODE_EXPORTER_PORT:-9100}"
   
